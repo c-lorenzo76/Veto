@@ -136,7 +136,7 @@ export const Lobby = () => {
             </div>
             <div className="joined-users flex-grow flex flex-col">
 
-                <div className="m-10 mx-auto gap-8 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                <div className="m-10 mx-auto gap-8 flex flex-row justify-center w-[80%] border">
                     {users.map((user, index) => (
                         <motion.div
                             key={user}

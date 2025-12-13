@@ -1,12 +1,12 @@
 
-<h1 align="center" style="font-family: 'Poppins', sans-serif; text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);">Veeto</h1>
-
+<!-- <h1 align="center" style="font-family: 'Poppins', sans-serif; text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);">Veeto</h1> -->
+# Veto
 
 ## Background
-Veeto was inspired by the many occurrences where my partner and I struggled to decide where to eat, 
+Veto was inspired by the many occurrences where my partner and I struggled to decide where to eat, 
 often spending more time second-guessing our options than enjoying a meal. 
-Our indecisiveness led me to create a solution—a website designed to help simplify the decision-making process. 
-Unlike existing tools that merely list nearby restaurants, Veeto takes user preferences into account to make a tailored recommendation. 
+Our indecisiveness led me to create a solution a website designed to help simplify the decision-making process. 
+Unlike existing tools that merely list nearby restaurants, Veto takes user preferences into account to make a tailored recommendation. 
 My goal is for others who face the same dilemma to find this platform just as helpful.
 
 ## Tech Stack
@@ -67,6 +67,20 @@ npm run dev
 ![results.jpg](./client/public/results.jpg)
 
 ### Updates
+12/12/25<br>
+TODO:
+- 
+<br>
+-
+
+11/12/25<br>
+TODO:
+- Fix UI on results page: Have the progress bar and the header be the same width as the results, change the bg color of the header, 
+have the Results look a bit different (rating being stars, price level being $$$ instead of dollars (leave a guide on the top that 
+translates what the amount should be based on dollar signs), get rid of the image)
+<br>
+- )Adjust the backend logic to be more accurate with the results. There are some excessive calls as well. 
+
 09/28 <br>
 I fixed the lobby.jsx error. I need to fix it how you view it on mobile. It doesn't look that well. 
 I also need to finish the backend implementation of the results because it doesn't display off the 
