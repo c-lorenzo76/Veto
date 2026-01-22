@@ -1,12 +1,12 @@
 const cors = require("cors");
 const express = require("express");
-const {Server} = require("socket.io");
+const { Server } = require("socket.io");
 require('dotenv').config();
 const axios = require('axios');
 
 
 const app = express();
-app.use(cors({origin: "http://localhost:5173"}));
+app.use(cors({ origin: "http://localhost:5173" }));
 const server = require("http").createServer(app);
 const io = new Server(server, {
     cors: {
@@ -28,7 +28,7 @@ io.use((socket, next) => {
     const avatar = socket.handshake.auth.avatar;
     if (user) {
         try {
-            socket.data = {...socket.data, user: user, avatar: avatar};
+            socket.data = { ...socket.data, user: user, avatar: avatar };
         } catch (err) {
         }
     }
@@ -39,7 +39,7 @@ io.use((socket, next) => {
 io.on("connection", socket => {
     console.log("user connected: ", socket.data.user);
 
-    socket.on("createLobby", ({coords}) => {
+    socket.on("createLobby", ({ coords }) => {
         let code = generateCode(); // generates code
 
         while (lobbies[code]) {             // checks to see no other lobby w/ code
@@ -48,62 +48,62 @@ io.on("connection", socket => {
 
         lobbies[code] = {
             host: socket.data.user,
-            users: [socket.data.user],
+            users: [{ name: socket.data.user, avatar: socket.data.avatar || null }],
             coords: coords,
             poll: [
                 {
                     id: 1,
                     question: "What is your current top priority for your meal?",
                     options: [
-                        {id: 1, text: "Ambiance", votes: []},
-                        {id: 2, text: "Budget", votes: []},
-                        {id: 3, text: "Cuisine", votes: []},
-                        {id: 4, text: "Distance", votes: []},
+                        { id: 1, text: "Ambiance", votes: [] },
+                        { id: 2, text: "Budget", votes: [] },
+                        { id: 3, text: "Cuisine", votes: [] },
+                        { id: 4, text: "Distance", votes: [] },
                     ],
                 },
                 {
                     id: 2,
                     question: "What kind of ambiance are you looking for?",
                     options: [
-                        {id: 1, text: "Casual and Cozy", votes: []},
-                        {id: 2, text: "Trendy and Modern", votes: []},
-                        {id: 3, text: "Romantic and Intimate", votes: []},
-                        {id: 4, text: "Family-friendly", votes: []},
-                        {id: 5, text: "Lively and Social", votes: []},
+                        { id: 1, text: "Casual and Cozy", votes: [] },
+                        { id: 2, text: "Trendy and Modern", votes: [] },
+                        { id: 3, text: "Romantic and Intimate", votes: [] },
+                        { id: 4, text: "Family-friendly", votes: [] },
+                        { id: 5, text: "Lively and Social", votes: [] },
                     ],
                 },
                 {
                     id: 3,
                     question: "What is your preferred price range?",
                     options: [
-                        {id: 1, text: "$", votes: []},
-                        {id: 2, text: "$$", votes: []},
-                        {id: 3, text: "$$$", votes: []},
-                        {id: 4, text: "$$$$", votes: []},
+                        { id: 1, text: "$", votes: [] },
+                        { id: 2, text: "$$", votes: [] },
+                        { id: 3, text: "$$$", votes: [] },
+                        { id: 4, text: "$$$$", votes: [] },
                     ],
                 },
                 {
                     id: 4,
                     question: "What type of cuisine are you in the mood for?",
                     options: [
-                        {id: 1, text: "Italian", votes: []},
-                        {id: 2, text: "Mexican", votes: []},
-                        {id: 3, text: "Chinese", votes: []},
-                        {id: 4, text: "Japanese", votes: []},
-                        {id: 5, text: "Mediterranean", votes: []},
-                        {id: 6, text: "American", votes: []},
-                        {id: 7, text: "French", votes: []},
-                        {id: 8, text: "Thai", votes: []},
+                        { id: 1, text: "Italian", votes: [] },
+                        { id: 2, text: "Mexican", votes: [] },
+                        { id: 3, text: "Chinese", votes: [] },
+                        { id: 4, text: "Japanese", votes: [] },
+                        { id: 5, text: "Mediterranean", votes: [] },
+                        { id: 6, text: "American", votes: [] },
+                        { id: 7, text: "French", votes: [] },
+                        { id: 8, text: "Thai", votes: [] },
                     ],
                 },
                 {
                     id: 5,
                     question: "How far are you willing to travel?",
                     options: [
-                        {id: 1, text: "Walking distance (0-1 miles)", votes: []},
-                        {id: 2, text: "Short drive (1-5 miles)", votes: []},
-                        {id: 3, text: "Moderate drive (5-15 miles)", votes: []},
-                        {id: 4, text: "Long drive (15+ miles)", votes: []},
+                        { id: 1, text: "Walking distance (0-1 miles)", votes: [] },
+                        { id: 2, text: "Short drive (1-5 miles)", votes: [] },
+                        { id: 3, text: "Moderate drive (5-15 miles)", votes: [] },
+                        { id: 4, text: "Long drive (15+ miles)", votes: [] },
                     ],
                 },
             ],
@@ -116,28 +116,49 @@ io.on("connection", socket => {
         console.log(lobbies[code])
     });
 
-    socket.on("joinLobby", ({lobbyCode}) => {
+    socket.on("joinLobby", ({ lobbyCode }) => {
         if (lobbies[lobbyCode]) {
             socket.join(lobbyCode);
+            const lobbyObj = lobbies[lobbyCode];
+            if (!lobbyObj.users.some(u => u.name === socket.data.user)) {
+                lobbyObj.users.push({ name: socket.data.user, avatar: socket.data.avatar || null });
+            }
 
-            lobbies[lobbyCode].users.push(socket.data.user);
-            const lobby = lobbies[lobbyCode];
-
-            io.to(lobbyCode).emit("lobbyInfo", { // I don't think I need this just pass users and host
+            // emit users as objects { name, avatar }
+            io.to(lobbyCode).emit("lobbyInfo", {
                 code: lobbyCode,
-                users: lobby.users,
-                host: lobby.host,
+                users: lobbyObj.users, // already objects
+                host: lobbyObj.host,
             });
 
-            io.to(lobbyCode).emit("lobbyJoined", lobbyCode); // why am I passing the lobbyCode?? should be socket.data.user info check for any errors
-
+            io.to(lobbyCode).emit("lobbyJoined", lobbyCode);
             console.log(`User ${socket.data.user} joined lobby ${lobbyCode}`);
-        } else {
+
+        }
+        else {
             socket.emit('Error', 'Error with joinLobby');
         }
+        // if (lobbies[lobbyCode]) {
+        //     socket.join(lobbyCode);
+
+        //     lobbies[lobbyCode].users.push(socket.data.user);
+        //     const lobby = lobbies[lobbyCode];
+
+        //     io.to(lobbyCode).emit("lobbyInfo", { // I don't think I need this just pass users and host
+        //         code: lobbyCode,
+        //         users: lobby.users,
+        //         host: lobby.host,
+        //     });
+
+        //     io.to(lobbyCode).emit("lobbyJoined", lobbyCode); // why am I passing the lobbyCode?? should be socket.data.user info check for any errors
+
+        //     console.log(`User ${socket.data.user} joined lobby ${lobbyCode}`);
+        // } else {
+        //     socket.emit('Error', 'Error with joinLobby');
+        // }
     });
 
-    socket.on("updateLobby", ({lobbyCode}) => {
+    socket.on("updateLobby", ({ lobbyCode }) => {
         if (lobbies[lobbyCode]) {
             const lobby = lobbies[lobbyCode];
             io.to(lobbyCode).emit("lobbyInfo", {
@@ -151,11 +172,11 @@ io.on("connection", socket => {
         }
     });
 
-    socket.on("startGame", ({lobbyCode}) => {
+    socket.on("startGame", ({ lobbyCode }) => {
         io.to(lobbyCode).emit("gameStarted")
     });
 
-    socket.on("getPollData", ({lobbyCode}) => {
+    socket.on("getPollData", ({ lobbyCode }) => {
         if (lobbies[lobbyCode]) {
             const lobby = lobbies[lobbyCode];
 
@@ -171,7 +192,7 @@ io.on("connection", socket => {
         }
     });
 
-    socket.on("vote", ({optionId, currentQuestion, lobbyCode}) => {
+    socket.on("vote", ({ optionId, currentQuestion, lobbyCode }) => {
         let lobby = lobbies[lobbyCode];
 
         if (!lobby) {
@@ -197,7 +218,7 @@ io.on("connection", socket => {
     });
 
 
-    socket.on("pollEnded", async ({code}) => {
+    socket.on("pollEnded", async ({ code }) => {
         if (lobbies[code]) {
 
             io.to(code).emit("navResults");
@@ -285,13 +306,12 @@ io.on("connection", socket => {
     }
 
     socket.on("disconnect", () => {
+        // inside socket.on("disconnect", ...)
         for (const [code, lobby] of Object.entries(lobbies)) {
-            if (lobby.users.includes(socket.data.user)) {
+            if (lobby.users.some(u => u.name === socket.data.user)) {
 
-                // deletes the user from the lobby
-                lobby.users = lobby.users.filter(user => user !== socket.data.user);
+                lobby.users = lobby.users.filter(u => u.name !== socket.data.user);
 
-                // deletes the user from the votes
                 lobby.poll.forEach(question => {
                     question.options.forEach(option => {
                         option.votes = option.votes.filter(vote => vote !== socket.data.user);
@@ -299,7 +319,7 @@ io.on("connection", socket => {
                 });
 
                 if (lobby.users.length === 0) {
-                    delete lobbies[code]; // Remove the lobby if no users left
+                    delete lobbies[code];
                     console.log(`Lobby with code ${code} has been removed`)
                 } else {
                     socket.broadcast.to(code).emit("userDisconnect", socket.data.user);
@@ -307,7 +327,29 @@ io.on("connection", socket => {
                 break;
             }
         }
-        console.log("user disconnected: ", socket.data.user);
+        // for (const [code, lobby] of Object.entries(lobbies)) {
+        //     if (lobby.users.includes(socket.data.user)) {
+
+        //         // deletes the user from the lobby
+        //         lobby.users = lobby.users.filter(user => user !== socket.data.user);
+
+        //         // deletes the user from the votes
+        //         lobby.poll.forEach(question => {
+        //             question.options.forEach(option => {
+        //                 option.votes = option.votes.filter(vote => vote !== socket.data.user);
+        //             });
+        //         });
+
+        //         if (lobby.users.length === 0) {
+        //             delete lobbies[code]; // Remove the lobby if no users left
+        //             console.log(`Lobby with code ${code} has been removed`)
+        //         } else {
+        //             socket.broadcast.to(code).emit("userDisconnect", socket.data.user);
+        //         }
+        //         break;
+        //     }
+        // }
+        // console.log("user disconnected: ", socket.data.user);
     });
 
 });

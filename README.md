@@ -69,9 +69,15 @@ npm run dev
 ### Updates
 12/12/25<br>
 TODO:
-- 
 <br>
--
+- When a new user enters the game, instead of displaying the name below the players already in there
+they get placed right next to the latest ones. Matter of fact it just keeps expanding. (might be fixed)
+<br>
+- The disconnect isn't working no more 
+<br>
+- The host won't be able to see their avatar in lobby. 
+<br>
+- See if I can make this in Java Spring instead
 
 11/12/25<br>
 TODO:
