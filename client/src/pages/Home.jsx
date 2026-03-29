@@ -65,13 +65,11 @@ export const Home = () => {
                                 ease: "easeInOut",
                             }}
                         >
-                            <h1 className="text-5xl">
-                                Veeto
-                            </h1>
+                            <img src="/veto-logo.png" alt="Veto" className="w-64" />
                         </motion.div>
                     </div>
                 </div>
-                <div className="mx-auto mt-10 flex items-center justify-center">
+                <div className="mx-auto flex items-center justify-center">
                     <div className="flex flex-col space-y-4">
                         <Link to={"/Create"}>
                             <motion.div

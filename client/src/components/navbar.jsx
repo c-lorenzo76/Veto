@@ -24,16 +24,16 @@ export function Navbar({ user, avatar }) {
 
     return (
 
-        <nav className="flex mx-auto p-6 bg-gray-500 rounded-3xl w-full lg:w-[80%]">
+        <nav className="flex mx-auto p-6 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl w-full lg:w-[80%]">
             <div className="flex items-center justify-between w-full">
                 <a href="#" className="flex items-center">
-                    <span className="self-center whitespace-nowrap text-xl text-gray-700 font-semibold dark:text-gray-600">
+                    <span className="self-center whitespace-nowrap text-xl text-white font-semibold dark:text-gray-600">
                         Veto
                     </span>
                 </a>
                 {!!user && (
                     <div className="flex flex-row items-center">
-                        <span className="mr-4 text-lg">{user}</span>
+                        <span className="mr-4 text-lg text-white">{user}</span>
                         <img
                             alt="User settings"
                             src={avatar}

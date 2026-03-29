@@ -38,12 +38,22 @@ export const Create = () => {
         setSelectedAvatar(avatar);
     };
 
+    const handleLocationError = (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+            alert('Location access was denied. To re-enable it, go to Safari Settings → Websites → Location, find localhost, and set it to "Allow". Then reload the page.');
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+            alert('Location information is unavailable. Please try again.');
+        } else if (error.code === error.TIMEOUT) {
+            alert('Location request timed out. Please try again.');
+        }
+    };
+
     // asks for location
     const handleLocation = () => {
         if(!navigator.geolocation){
             alert('Geolocation is not supported by your browser');
         } else{
-            navigator.geolocation.getCurrentPosition(createLobby);
+            navigator.geolocation.getCurrentPosition(createLobby, handleLocationError);
         }
     };
 

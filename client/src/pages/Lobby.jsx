@@ -104,7 +104,7 @@ export const Lobby = () => {
                         ease: "easeInOut",
                     }}
                 >
-                    <div className="players-joined flex justify-center items-center">
+                    <div className="players-joined flex justify-center items-center ">
                         <Button>
                             <Dot size={24} className="mr-2 text-red-500" />
                             <span>{users.length}</span>
@@ -122,7 +122,7 @@ export const Lobby = () => {
                     }}
                 >
                     <div className="veto-title flex justify-center items-center">
-                        <h1 className="text-5xl font-bold bg-transparent text:shadow-lg">Veeto</h1>
+                        <h1 className="text-5xl font-bold bg-transparent text:shadow-lg">Veto</h1>
                     </div>
                 </motion.div>
                 <motion.div
@@ -137,7 +137,7 @@ export const Lobby = () => {
                     <div className="start-button flex justify-center items-center">
                         {isHost && (
                             <Button
-                                className="bg-yellow-500 hover:bg-yellow-300 text-black px-8"
+                                className="bg-gradient-to-r from-lime-400 to-lime-500 text-black px-8"
                                 onClick={handleStartGame}
                             >
                                 Start

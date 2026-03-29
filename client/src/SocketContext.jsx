@@ -9,7 +9,7 @@ export const SocketProvider = ({ children }) => {
 
     useEffect(() => {
         const newSocket = io('http://localhost:8000', {
-            autoConnect: false, // Do not connect immediately
+            autoConnect: false, 
         });
 
         newSocket.on('connect', () => setIsConnected(true));

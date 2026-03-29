@@ -8,7 +8,8 @@ export const Layout = ({children, user, avatar}) => {
     return (
         <div className="p-6">
             <Navbar children={children} user={user} avatar={avatar}/>
-            <div className="grid place-items-center">{children}</div>
+            <div>{children}</div>
+            {/* <div className="grid place-items-center">{children}</div> */}
             <Footer/>
             <Outlet/>
         </div>

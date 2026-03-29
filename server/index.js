@@ -218,6 +218,18 @@ io.on("connection", socket => {
     });
 
 
+    socket.on("getPlaceDetails", async ({ placeId }) => {
+        try {
+            const fields = 'name,rating,user_ratings_total,formatted_address,formatted_phone_number,website,opening_hours,price_level,url';
+            const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${process.env.SECRET_KEY}`;
+            const response = await axios.get(url);
+            socket.emit("placeDetails", response.data.result);
+        } catch (error) {
+            console.error('Error fetching place details:', error);
+            socket.emit('Error', 'Error fetching place details');
+        }
+    });
+
     socket.on("pollEnded", async ({ code }) => {
         if (lobbies[code]) {
 
@@ -250,59 +262,41 @@ io.on("connection", socket => {
     }
 
     function getMostVotedOptions(lobby) {
-        const poll = lobby.poll;
-        let selectedOptions = [];
-
-        poll.forEach((question) => {
-            // Find the option with the highest number of votes
-            const mostVoted = question.options.reduce((prev, curr) => {
-                return curr.votes.length > prev.votes.length ? curr : prev;
-            });
-            selectedOptions.push(mostVoted.text); // Add the most voted option's text
+        return lobby.poll.map((question) => {
+            const maxVotes = Math.max(...question.options.map(o => o.votes.length));
+            const tied = question.options.filter(o => o.votes.length === maxVotes);
+            // if tied, randomly pick one
+            return tied[Math.floor(Math.random() * tied.length)].text;
         });
-
-        return selectedOptions;
     }
 
     async function searchPlaces(selectedOptions, coords) {
+        // selectedOptions: [priority, ambiance, price, cuisine, distance]
+        const ambiance = selectedOptions[1];
+        const cuisine  = selectedOptions[3];
+        const distance = selectedOptions[4];
+
         const distanceToRadius = {
-            "Walking distance (0-1 miles)": 1610, // 1 mile in meters
-            "Short drive (1-5 miles)": 8047, // 5 miles in meters
-            "Moderate drive (5-15 miles)": 24145, // 15 miles in meters
-            "Long drive (15+ miles)": 50000 // 50 km or 50,000 meters
+            "Walking distance (0-1 miles)": 1610,
+            "Short drive (1-5 miles)":      8047,
+            "Moderate drive (5-15 miles)":  24145,
+            "Long drive (15+ miles)":       50000,
         };
 
-        const location = coords;
-        // console.log(location);
-        const radius = distanceToRadius[selectedOptions[selectedOptions.length - 1]];
-        // const type ='restaurant';
-        // const query = selectedOptions.slice(0, -1).join(' ');
-        // console.log(query);
+        const radius = distanceToRadius[distance] || 8047;
+        const query  = `${cuisine} ${ambiance} restaurant`;
 
-        // const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&location=${location}&radius=${radius}&type=${type}&key=${process.env.SECRET_KEY}`;
-        //
-        // try{
-        //     const response = await axios.get(url);
-        //     return response.data.results;
-        //
-        // } catch (error){
-        //     console.error('Error searching places:', error);
-        //     return [];
-        // }
-        // const testLocation = '35.850174959411014,-79.56182821402501';
-        const testQuery = 'Japanese';
-        // const testRadius = 8045; // Short drive (1-5 miles)
+        console.log(`Searching: "${query}" within ${radius}m of ${coords}`);
 
-        const testUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${testQuery}&location=${location}&radius=${radius}&type=restaurant&key=${process.env.SECRET_KEY}`;
+        const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&location=${coords}&radius=${radius}&type=restaurant&key=${process.env.SECRET_KEY}`;
 
         try {
-            const response = await axios.get(testUrl);
-            console.log('Test API Response:', response.data);
-            return response.data.results
+            const response = await axios.get(url);
+            return response.data.results;
         } catch (error) {
-            console.error('Error with test API request:', error);
+            console.error('Error searching places:', error);
+            return [];
         }
-
     }
 
     socket.on("disconnect", () => {
