@@ -95,10 +95,10 @@ export const Questions = () => {
                 </Field>
             </div>
 
-            <div className={"w-full lg:w-[80%] bg-[#f5f5f7] rounded-xl mx-auto p-8 shadow-sm "}>
+            <div className={"w-full lg:w-[80%] bg-[#f0f7f0] rounded-xl mx-auto p-8 shadow-sm "}>
                 {poll && (
                     <>
-                        <h1 className={"text-2xl font-bold text-center text-[#1d1d1f]"}>
+                        <h1 className={"text-2xl font-bold text-center text-[#1a2e1a]"}>
                             {poll.questions[currentQuestion].question}
                         </h1>
                         {poll && (
@@ -106,22 +106,22 @@ export const Questions = () => {
                                 {poll.questions[currentQuestion].options.map(option => (
                                     <Card
                                         key={option.id}
-                                        className={"relative transition-all duration-300 min-h-[130px] bg-white border border-[#d2d2d7] p-2"}
+                                        className={"relative transition-all duration-300 min-h-[130px] bg-white border border-[#c8dcc8] p-2"}
                                     >
                                         <div className={"z-10"}>
                                             <div className={"mb-2"}>
-                                                <h2 className={"text-xl font-semibold text-[#1d1d1f]"}>{option.text}</h2>
+                                                <h2 className={"text-xl font-semibold text-[#1a2e1a]"}>{option.text}</h2>
                                             </div>
                                             <div className={"absolute bottom-5 right-5"}>
                                                 {socket.auth.token && !option.votes.includes(socket.auth.token) ? (
                                                     <Button
-                                                        className={"bg-[#0071e3] hover:bg-[#0077ed] p-2 text-white"}
+                                                        className={"bg-[#2d6a2d] hover:bg-[#266226] text-white md:p-2"}
                                                         onClick={() => handleVote(option.id)}
                                                     >
                                                         Vote
                                                     </Button>
                                                 ) : (
-                                                    <Button disabled className={"bg-[#d2d2d7] text-[#1d1d1f] p-2"}>
+                                                    <Button disabled className={"bg-[#c8dcc8] text-[#1a2e1a] md:p-2"}>
                                                         Voted
                                                     </Button>
                                                 )}
@@ -131,23 +131,23 @@ export const Questions = () => {
                                                     {option.votes.map((vote) => (
                                                         <div
                                                             key={vote}
-                                                            className={"py-1 px-3 bg-[#1d1d1f] rounded-lg flex items-center justify-center shadow text-sm"}
+                                                            className={"py-1 px-3 bg-[#1a2e1a] rounded-lg flex items-center justify-center shadow text-sm"}
                                                         >
-                                                            <div className={"w-2 h-2 bg-[#0071e3] rounded-lg flex items-center justify-center shadow text-sm m-1 "}></div>
+                                                            <div className={"w-2 h-2 bg-[#2d6a2d] rounded-lg flex items-center justify-center shadow text-sm m-1 "}></div>
                                                             <div className={"text-gray-100"}>{vote}</div>
                                                         </div>
                                                     ))}
                                                 </div>
                                             )}
                                         </div>
-                                        <div className={"absolute top-3 right-5 p-2 text-sm font-semibold bg-[#1d1d1f] text-white rounded-lg z-10"}>
+                                        <div className={"absolute top-3 right-5 p-2 text-sm font-semibold bg-[#1a2e1a] text-white rounded-lg z-10"}>
                                             {option.votes.length} / {users.length}{/* need to change the 0 to be the amount of players in the game*/}
                                         </div>
                                         <div
-                                            className={"absolute bottom-0 inset-x-0 bg-[#d2d2d7] rounded-md overflow-hidden h-4"}
+                                            className={"absolute bottom-0 inset-x-0 bg-[#c8dcc8] rounded-md overflow-hidden h-4"}
                                         >
                                             <div
-                                                className="bg-gradient-to-r from-teal-400 to-purple-500 transition-all duration-300 h-full"
+                                                className="bg-gradient-to-r from-green-400 to-emerald-600 transition-all duration-300 h-full"
                                                 style={{
                                                     width: `${totalVotes > 0
                                                             ? (option.votes.length / totalVotes) * 100

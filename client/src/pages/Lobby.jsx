@@ -73,7 +73,7 @@ export const Lobby = () => {
     return (
         <div className="flex flex-col min-h-screen">
             <motion.div
-                initial={{ opacity: 0.0, y: 40 }}
+                initial={{ opacity: 0.0, y: 0 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{
                     delay: 0.3,
@@ -96,7 +96,7 @@ export const Lobby = () => {
             </motion.div>
             <div className="sub-nav w-full m-8 grid grid-cols-3 mx-auto items-center">
                 <motion.div
-                    initial={{ opacity: 0.0, x: -40 }}
+                    initial={{ opacity: 0.0, x: 0 }}
                     whileInView={{ opacity: 1, x: 0 }}
                     transition={{
                         delay: 0.3,
@@ -113,7 +113,7 @@ export const Lobby = () => {
                     </div>
                 </motion.div>
                 <motion.div
-                    initial={{ opacity: 0.0, y: -40 }}
+                    initial={{ opacity: 0.0, y: 0 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     transition={{
                         delay: 0.3,
@@ -126,7 +126,7 @@ export const Lobby = () => {
                     </div>
                 </motion.div>
                 <motion.div
-                    initial={{ opacity: 0.0, x: 40 }}
+                    initial={{ opacity: 0.0, x: 0 }}
                     whileInView={{ opacity: 1, x: 0 }}
                     transition={{
                         delay: 0.3,

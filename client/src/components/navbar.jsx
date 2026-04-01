@@ -24,7 +24,7 @@ export function Navbar({ user, avatar }) {
 
     return (
 
-        <nav className="flex mx-auto p-6 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl w-full lg:w-[80%]">
+        <nav className="flex mx-auto p-6 bg-[#1a2e1a] rounded-3xl w-[90%] lg:w-[80%]">
             <div className="flex items-center justify-between w-full">
                 <a href="#" className="flex items-center">
                     <span className="self-center whitespace-nowrap text-xl text-white font-semibold dark:text-gray-600">

@@ -7,6 +7,34 @@ const axios = require('axios');
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5173" }));
+
+const photoCache = new Map();
+
+app.get('/api/place-photo', async (req, res) => {
+    const { ref } = req.query;
+    if (!ref) return res.status(400).send('Missing photo_reference');
+
+    if (photoCache.has(ref)) {
+        const { data, contentType } = photoCache.get(ref);
+        res.setHeader('Content-Type', contentType);
+        return res.send(data);
+    }
+
+    try {
+        const url = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${ref}&key=${process.env.SECRET_KEY}`;
+        const response = await axios.get(url, { responseType: 'arraybuffer' });
+        const contentType = response.headers['content-type'];
+        const data = Buffer.from(response.data);
+
+        photoCache.set(ref, { data, contentType });
+
+        res.setHeader('Content-Type', contentType);
+        res.send(data);
+    } catch (error) {
+        console.error('Error fetching place photo:', error);
+        res.status(500).send('Error fetching photo');
+    }
+});
 const server = require("http").createServer(app);
 const io = new Server(server, {
     cors: {
@@ -27,10 +55,7 @@ io.use((socket, next) => {
     const user = socket.handshake.auth.token;
     const avatar = socket.handshake.auth.avatar;
     if (user) {
-        try {
-            socket.data = { ...socket.data, user: user, avatar: avatar };
-        } catch (err) {
-        }
+        socket.data = { ...socket.data, user: user, avatar: avatar };
     }
     next();
 });
@@ -113,7 +138,6 @@ io.on("connection", socket => {
         socket.emit("lobbyCreated", code);
 
         console.log(`Lobby created with code: ${code}`);
-        console.log(lobbies[code])
     });
 
     socket.on("joinLobby", ({ lobbyCode }) => {
@@ -131,31 +155,12 @@ io.on("connection", socket => {
                 host: lobbyObj.host,
             });
 
-            io.to(lobbyCode).emit("lobbyJoined", lobbyCode);
             console.log(`User ${socket.data.user} joined lobby ${lobbyCode}`);
 
         }
         else {
             socket.emit('Error', 'Error with joinLobby');
         }
-        // if (lobbies[lobbyCode]) {
-        //     socket.join(lobbyCode);
-
-        //     lobbies[lobbyCode].users.push(socket.data.user);
-        //     const lobby = lobbies[lobbyCode];
-
-        //     io.to(lobbyCode).emit("lobbyInfo", { // I don't think I need this just pass users and host
-        //         code: lobbyCode,
-        //         users: lobby.users,
-        //         host: lobby.host,
-        //     });
-
-        //     io.to(lobbyCode).emit("lobbyJoined", lobbyCode); // why am I passing the lobbyCode?? should be socket.data.user info check for any errors
-
-        //     console.log(`User ${socket.data.user} joined lobby ${lobbyCode}`);
-        // } else {
-        //     socket.emit('Error', 'Error with joinLobby');
-        // }
     });
 
     socket.on("updateLobby", ({ lobbyCode }) => {
@@ -207,11 +212,8 @@ io.on("connection", socket => {
             return;
         }
 
-        lobbies[lobbyCode].poll[currentQuestion].options[optionId - 1].votes.push(socket.data.user);
+        option.votes.push(socket.data.user);
 
-        lobby = lobbies[lobbyCode]
-
-        // want to know if I can just send it without doing 'questions:' bc it sets an array in another array for no reason
         io.to(lobbyCode).emit("setPoll", {
             questions: lobby.poll,
         });
@@ -220,7 +222,7 @@ io.on("connection", socket => {
 
     socket.on("getPlaceDetails", async ({ placeId }) => {
         try {
-            const fields = 'name,rating,user_ratings_total,formatted_address,formatted_phone_number,website,opening_hours,price_level,url';
+            const fields = 'name,rating,user_ratings_total,formatted_address,formatted_phone_number,website,opening_hours,price_level,url,photos';
             const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${process.env.SECRET_KEY}`;
             const response = await axios.get(url);
             socket.emit("placeDetails", response.data.result);
@@ -248,57 +250,6 @@ io.on("connection", socket => {
         }
     });
 
-    async function emitGetPlaces(code) {
-        const lobby = lobbies[code];
-
-        if (lobby) {
-            const selectedOptions = getMostVotedOptions(lobby);
-            const places = await searchPlaces(selectedOptions, lobby.coords);
-
-            io.to(code).emit('getPlaces', places);
-            console.log('SENT TO RESULTS', places[0]);
-
-        }
-    }
-
-    function getMostVotedOptions(lobby) {
-        return lobby.poll.map((question) => {
-            const maxVotes = Math.max(...question.options.map(o => o.votes.length));
-            const tied = question.options.filter(o => o.votes.length === maxVotes);
-            // if tied, randomly pick one
-            return tied[Math.floor(Math.random() * tied.length)].text;
-        });
-    }
-
-    async function searchPlaces(selectedOptions, coords) {
-        // selectedOptions: [priority, ambiance, price, cuisine, distance]
-        const ambiance = selectedOptions[1];
-        const cuisine  = selectedOptions[3];
-        const distance = selectedOptions[4];
-
-        const distanceToRadius = {
-            "Walking distance (0-1 miles)": 1610,
-            "Short drive (1-5 miles)":      8047,
-            "Moderate drive (5-15 miles)":  24145,
-            "Long drive (15+ miles)":       50000,
-        };
-
-        const radius = distanceToRadius[distance] || 8047;
-        const query  = `${cuisine} ${ambiance} restaurant`;
-
-        console.log(`Searching: "${query}" within ${radius}m of ${coords}`);
-
-        const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&location=${coords}&radius=${radius}&type=restaurant&key=${process.env.SECRET_KEY}`;
-
-        try {
-            const response = await axios.get(url);
-            return response.data.results;
-        } catch (error) {
-            console.error('Error searching places:', error);
-            return [];
-        }
-    }
-
     socket.on("disconnect", () => {
         // inside socket.on("disconnect", ...)
         for (const [code, lobby] of Object.entries(lobbies)) {
@@ -321,32 +272,58 @@ io.on("connection", socket => {
                 break;
             }
         }
-        // for (const [code, lobby] of Object.entries(lobbies)) {
-        //     if (lobby.users.includes(socket.data.user)) {
-
-        //         // deletes the user from the lobby
-        //         lobby.users = lobby.users.filter(user => user !== socket.data.user);
-
-        //         // deletes the user from the votes
-        //         lobby.poll.forEach(question => {
-        //             question.options.forEach(option => {
-        //                 option.votes = option.votes.filter(vote => vote !== socket.data.user);
-        //             });
-        //         });
-
-        //         if (lobby.users.length === 0) {
-        //             delete lobbies[code]; // Remove the lobby if no users left
-        //             console.log(`Lobby with code ${code} has been removed`)
-        //         } else {
-        //             socket.broadcast.to(code).emit("userDisconnect", socket.data.user);
-        //         }
-        //         break;
-        //     }
-        // }
-        // console.log("user disconnected: ", socket.data.user);
     });
 
 });
+
+async function emitGetPlaces(code) {
+    const lobby = lobbies[code];
+
+    if (lobby) {
+        const selectedOptions = getMostVotedOptions(lobby);
+        const places = await searchPlaces(selectedOptions, lobby.coords);
+
+        io.to(code).emit('getPlaces', { places, coords: lobby.coords });
+        console.log('SENT TO RESULTS', places[0]);
+    }
+}
+
+function getMostVotedOptions(lobby) {
+    return lobby.poll.map((question) => {
+        const maxVotes = Math.max(...question.options.map(o => o.votes.length));
+        const tied = question.options.filter(o => o.votes.length === maxVotes);
+        // if tied, randomly pick one
+        return tied[Math.floor(Math.random() * tied.length)].text;
+    });
+}
+
+async function searchPlaces(selectedOptions, coords) {
+    const ambiance = selectedOptions[1];
+    const cuisine  = selectedOptions[3];
+    const distance = selectedOptions[4];
+
+    const distanceToRadius = {
+        "Walking distance (0-1 miles)": 1610,
+        "Short drive (1-5 miles)":      8047,
+        "Moderate drive (5-15 miles)":  24145,
+        "Long drive (15+ miles)":       50000,
+    };
+
+    const radius = distanceToRadius[distance] || 8047;
+    const query  = `${cuisine} ${ambiance} restaurant`;
+
+    console.log(`Searching: "${query}" within ${radius}m of ${coords}`);
+
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&location=${coords}&radius=${radius}&type=restaurant&key=${process.env.SECRET_KEY}`;
+
+    try {
+        const response = await axios.get(url);
+        return response.data.results;
+    } catch (error) {
+        console.error('Error searching places:', error);
+        return [];
+    }
+}
 
 server.listen(8000, () => {
     console.log("Listening on Port:8000");
