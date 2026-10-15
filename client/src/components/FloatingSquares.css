@@ -1,0 +1,18 @@
+.floating-squares li {
+    position: absolute;
+    display: block;
+    list-style: none;
+    bottom: -60px;
+    background: linear-gradient(to right, rgba(45, 106, 45, 0.5), rgba(234, 179, 8, 0.45));
+    animation: floating-squares-rise linear infinite;
+}
+
+@keyframes floating-squares-rise {
+    0%   { transform: translateY(0) rotate(0deg); opacity: 0; border-radius: 0; }
+    15%  { opacity: 0.35; }
+    100% { transform: translateY(-320px) rotate(360deg); opacity: 0; border-radius: 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .floating-squares li { animation: none; opacity: 0.12; bottom: 20%; }
+}

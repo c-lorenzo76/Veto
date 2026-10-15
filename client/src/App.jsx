@@ -1,16 +1,21 @@
 import './App.css';
-import {BrowserRouter, Routes, Route} from "react-router-dom";
+import {BrowserRouter, Routes, Route, Navigate, useParams} from "react-router-dom";
 import {Home} from "./pages/Home";
 import {Create} from "./pages/Create";
 import {Join} from "./pages/Join";
-import {Lobby} from "./pages/Lobby";
-import {Questions} from "./pages/Questions";
-import {Results} from "./pages/Results";
+import {Room} from "./pages/Room";
+import {ROUTES} from "./constants/routes";
 import {SocketProvider} from "./SocketContext";
 import {LanguageProvider} from "./context/LanguageContext";
 import { Toaster } from "@/components/ui/toaster";
 
 
+
+// Old per-phase links (/lobby/CODE, /questions/CODE, /results/CODE) now land in the room.
+const LegacyRoomRedirect = () => {
+    const { code } = useParams();
+    return <Navigate to={ROUTES.room(code)} replace/>;
+};
 
 const App = () => {
     return (
@@ -19,11 +24,12 @@ const App = () => {
                 <SocketProvider>
                     <Routes>
                         <Route index element={<Home/>}/>
-                        <Route path={"Create"} element={<Create/>}/>
-                        <Route path={"Join"} element={<Join/>}/>
-                        <Route path={"Lobby/:code"} element={<Lobby/>}/>
-                        <Route path={"Questions/:code"} element={<Questions/>}/>
-                        <Route path={"Results/:code"} element={<Results/>}/>
+                        <Route path={"create"} element={<Create/>}/>
+                        <Route path={"join"} element={<Join/>}/>
+                        <Route path={"room"} element={<Room/>}/>
+                        <Route path={"lobby/:code"} element={<LegacyRoomRedirect/>}/>
+                        <Route path={"questions/:code"} element={<LegacyRoomRedirect/>}/>
+                        <Route path={"results/:code"} element={<LegacyRoomRedirect/>}/>
                     </Routes>
                 </SocketProvider>
                 <Toaster />

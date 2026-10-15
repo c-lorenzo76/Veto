@@ -20,7 +20,7 @@
     "@radix-ui/react-toast": "^1.2.15",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
-    "flowbite-react": "^0.10.1",
+    "flowbite-react": "^0.10.2",
     "framer-motion": "^11.3.2",
     "input-otp": "^1.2.4",
     "leaflet": "^1.9.4",
@@ -46,8 +46,8 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.7",
     "postcss": "^8.4.39",
-    "react-router-dom": "^6.24.1",
-    "tailwindcss": "^3.4.4",
+    "react-router-dom": "^7.18.4",
+    "tailwindcss": "^3.4.19",
     "vite": "^6.4.1"
   }
 }
