@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useStrings } from "@/context/LanguageContext";
+import { ROUTES } from "@/constants/routes";
 
 /**
  * Warns before an in-progress lobby session is abandoned via browser back/forward
@@ -81,7 +82,7 @@ export function useLeaveGuard({ socket, code, isHost: isHostProp }) {
             // disconnect event and won't remove this player from lobby.users.
             sock?.disconnect();
 
-            navigate('/', { replace: true });
+            navigate(ROUTES.home, { replace: true });
         };
 
         window.addEventListener('popstate', handlePopState);

@@ -15,6 +15,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage, useStrings } from "@/context/LanguageContext";
+import { VetoWordmark } from "@/components/VetoWordmark";
+import { ROUTES } from "@/constants/routes";
 import './Home.css';
 
 const LANGUAGE_OPTIONS = [
@@ -25,6 +27,10 @@ const LANGUAGE_OPTIONS = [
     { value: "pt", label: "Português" },
     { value: "ru", label: "Русский" },
 ];
+
+const LANGUAGE_LABELS = Object.fromEntries(
+    LANGUAGE_OPTIONS.map(({ value, label }) => [value, label])
+);
 
 export const Home = () => {
     const location = useLocation();
@@ -71,16 +77,16 @@ export const Home = () => {
                             <SelectValue
                                 placeholder={
                                     <div
-                                        className={"flex items-center justify-center ml-1 mr-1 space-x-2 text-xl font-bold"}>
+                                        className={"flex items-center justify-center ml-1 mr-1 space-x-2 text-md font-semibold"}>
                                         <FaEarthAmericas/>
-                                        <span>{language.toUpperCase()}</span>
+                                        <span>{LANGUAGE_LABELS[language]}</span>
                                     </div>
                                 }
                             >
                                 <div
-                                    className={"flex items-center justify-center ml-1 mr-1 space-x-2 text-xl font-bold"}>
+                                    className={"flex items-center justify-center ml-1 mr-1 space-x-2 text-md font-semibold"}>
                                     <FaEarthAmericas/>
-                                    <span>{language.toUpperCase()}</span>
+                                    <span>{LANGUAGE_LABELS[language]}</span>
                                 </div>
                             </SelectValue>
                         </SelectTrigger>
@@ -103,13 +109,13 @@ export const Home = () => {
                             whileInView={{opacity: 1, y: 0}}
                             transition={entranceTransition}
                         >
-                            <img src="/veto-logo.png" alt="Veto" className="w-64" />
+                            <VetoWordmark size="lg" onDark={false} />
                         </motion.div>
                     </div>
                 </div>
                 <div className="mx-auto flex items-center justify-center">
                     <div className="flex flex-col space-y-4">
-                        <Link to={"/Create"}>
+                        <Link to={ROUTES.create}>
                             <motion.div
                                 initial={reducedMotion ? false : {opacity: 0.0, y: 40}}
                                 whileInView={{opacity: 1, y: 0}}
@@ -121,7 +127,7 @@ export const Home = () => {
                                 </Button>
                             </motion.div>
                         </Link>
-                        <Link to={"/Join"}>
+                        <Link to={ROUTES.join}>
                             <motion.div
                                 initial={reducedMotion ? false : {opacity: 0.0, y: 40}}
                                 whileInView={{opacity: 1, y: 0}}

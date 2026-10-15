@@ -24,6 +24,19 @@
         --input: 220 13% 91%;
         --ring: 224 71.4% 4.1%;
         --radius: 0.5rem;
+
+        /* ── Veto brand palette (single source of truth; mapped in tailwind.config.js) ──
+           Use these names in components (bg-surface, text-brand-ink, ...) instead of
+           raw hex / gray-* values. */
+        --brand-ink: 120 28% 14%;          /* dark forest green: headings, wordmark, strong text */
+        --gold: 45 93% 47%;                /* yellow accent (wordmark "to", highlights) */
+        --surface: 210 20% 98%;            /* cards, navbar, panels */
+        --surface-muted: 220 14% 96%;      /* page tint, hover states, pills */
+        --surface-border: 220 13% 91%;     /* card borders, progress/vote tracks */
+        --surface-strong: 216 12% 84%;     /* progress bar track, stronger dividers */
+        --page-top: 220 13% 91%;           /* page background gradient: top */
+        --page-mid: 220 14% 96%;           /* ...middle */
+        --page-bottom: 0 0% 100%;          /* ...bottom */
         --chart-1: 12 76% 61%;
         --chart-2: 173 58% 39%;
         --chart-3: 197 37% 24%;
@@ -55,7 +68,17 @@
         --chart-2: 160 60% 45%;
         --chart-3: 30 80% 55%;
         --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
+                --chart-5: 340 75% 55%;
+
+        --brand-ink: 120 20% 90%;
+        --gold: 45 93% 55%;
+        --surface: 224 40% 8%;
+        --surface-muted: 215 28% 12%;
+        --surface-border: 215 28% 17%;
+        --surface-strong: 215 20% 25%;
+        --page-top: 224 50% 6%;
+        --page-mid: 224 60% 5%;
+        --page-bottom: 224 71% 4%;
     }
 }
 

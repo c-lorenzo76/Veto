@@ -28,7 +28,8 @@ import { Plus, User, Merge } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import AvatarSelection from "@/components/AvatarSelection";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ROUTES, ROOM_PARAM } from "@/constants/routes";
 import { useSocket } from "@/SocketContext";
 import { useEffect } from "react";
 import { REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp";
@@ -39,7 +40,8 @@ import { useToast } from "@/hooks/use-toast";
 export const Join = () => {
     const [selectedAvatar, setSelectedAvatar] = useState(null);
     const [name, setName] = useState('');
-    const [pin, setPin] = useState('');
+    const [searchParams] = useSearchParams();
+    const [pin, setPin] = useState(() => (searchParams.get(ROOM_PARAM) || '').toUpperCase());
     const navigate = useNavigate();
     const { socket, connectSocket } = useSocket();
     const t = useStrings();
@@ -53,7 +55,7 @@ export const Join = () => {
     useEffect(() => {
         if (!socket) return;
         const handleLobbyJoined = () => {
-            navigate(`/Lobby/${pin}`);
+            navigate(ROUTES.room(pin));
         };
         const handleError = () => {
             toast({
@@ -72,17 +74,34 @@ export const Join = () => {
     }, [socket, pin, navigate, toast, t]);
 
     const handleJoin = () => {
-        console.log("name: ", name);
-        console.log("lobby-code: ", pin);
+        if (!name.trim()) {
+            toast({
+                title: t.join.nameRequiredTitle,
+                description: t.join.nameRequiredDescription,
+                variant: "destructive",
+                duration: 4000,
+            });
+            return;
+        }
 
-        if (name && pin) {
+        if (!selectedAvatar) {
+            toast({
+                title: t.join.avatarRequiredTitle,
+                description: t.join.avatarRequiredDescription,
+                variant: "destructive",
+                duration: 4000,
+            });
+            return;
+        }
+
+        if (pin) {
             connectSocket(name, selectedAvatar);
             socket.emit("joinLobby", { lobbyCode: pin });
         }
     }
 
     return (
-        <div className="flex flex-col justify-center min-h-screen items-center bg-gray-100">
+        <div className="flex flex-col justify-center min-h-screen items-center bg-surface-muted">
             <motion.div
                 initial={{ opacity: 0.0, x: -40 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -92,7 +111,7 @@ export const Join = () => {
                     ease: "easeInOut",
                 }}
             >
-                <Card className="w-full max-w-sm bg-gray-50">
+                <Card className="w-full max-w-sm bg-surface">
                     <CardHeader>
                         <CardTitle className="text-5xl flex justify-center">
                             {t.join.title}
@@ -143,7 +162,7 @@ export const Join = () => {
                             </Dialog>
                         </div>
                         <CardDescription className={"text-center"}>
-                            {t.join.avatarOptional}
+                            {t.join.avatarPrompt}
                         </CardDescription>
                         <div className="grid gap-2">
                             <Label htmlFor="name">{t.join.nameLabel}</Label>

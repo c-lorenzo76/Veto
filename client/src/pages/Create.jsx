@@ -19,26 +19,30 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
+import { ROUTES } from "@/constants/routes";
 import { useState, useEffect } from "react";
-import { ChevronRight, User, Plus } from 'lucide-react';
+import { ChevronRight, User, Plus, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useSocket } from "@/SocketContext"
 import AvatarSelection from "@/components/AvatarSelection";
 import { useStrings } from "@/context/LanguageContext";
+import { useToast } from "@/hooks/use-toast";
 
 export const Create = () => {
 
     const [selectedAvatar, setSelectedAvatar] = useState(null);
     const [name, setName] = useState('');
+    const [isCreating, setIsCreating] = useState(false);
 
     const navigate = useNavigate();
     const { socket } = useSocket();
     const t = useStrings();
+    const { toast } = useToast();
 
 
     useEffect(() => {
         if (!socket) return;
-        const handleLobbyCreated = (code) => navigate(`/Lobby/${code}`);
+        const handleLobbyCreated = (code) => navigate(ROUTES.room(code));
         socket.on('lobbyCreated', handleLobbyCreated);
         return () => socket.off('lobbyCreated', handleLobbyCreated);
     }, [socket, navigate]);
@@ -47,21 +51,54 @@ export const Create = () => {
         setSelectedAvatar(avatar);
     };
 
+    const showLocationError = (description) => {
+        toast({
+            title: t.create.locationErrorTitle,
+            description,
+            variant: "destructive",
+            duration: 4000,
+        });
+        setIsCreating(false);
+    };
+
     const handleLocationError = (error) => {
         if (error.code === error.PERMISSION_DENIED) {
-            alert(t.create.locationDenied);
+            showLocationError(t.create.locationDenied);
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-            alert(t.create.locationUnavailable);
+            showLocationError(t.create.locationUnavailable);
         } else if (error.code === error.TIMEOUT) {
-            alert(t.create.locationTimeout);
+            showLocationError(t.create.locationTimeout);
         }
     };
 
     // asks for location
     const handleLocation = () => {
-        if(!navigator.geolocation){
-            alert(t.create.geolocationNotSupported);
-        } else{
+        if (!name.trim()) {
+            toast({
+                title: t.create.nameRequiredTitle,
+                description: t.create.nameRequiredDescription,
+                variant: "destructive",
+                duration: 4000,
+            });
+            return;
+        }
+
+        if (!selectedAvatar) {
+            toast({
+                title: t.create.avatarRequiredTitle,
+                description: t.create.avatarRequiredDescription,
+                variant: "destructive",
+                duration: 4000,
+            });
+            return;
+        }
+
+        if (isCreating) return;
+        setIsCreating(true);
+
+        if (!navigator.geolocation) {
+            showLocationError(t.create.geolocationNotSupported);
+        } else {
             navigator.geolocation.getCurrentPosition(createLobby, handleLocationError);
         }
     };
@@ -71,10 +108,6 @@ export const Create = () => {
 
         const coords = `${position.coords.latitude},${position.coords.longitude}`;
 
-        if (name.trim() && coords.trim() === '') return;
-        console.log(`Name: ${name}`)
-        console.log(`Coords: ${coords}`)
-
         if (socket) {
             socket.auth = {token: name, avatar: selectedAvatar};
             socket.connect();
@@ -82,11 +115,12 @@ export const Create = () => {
             socket.emit("createLobby", {coords});
         } else {
             console.error('Socket not initialized...')
+            setIsCreating(false);
         }
     }
 
     return (
-        <div className="flex flex-col justify-center min-h-screen items-center bg-gray-100">
+        <div className="flex flex-col justify-center min-h-screen items-center bg-surface-muted">
             <motion.div
                 initial={{opacity: 0.0, x: -40}}
                 whileInView={{opacity: 1, x: 0}}
@@ -96,7 +130,7 @@ export const Create = () => {
                     ease: "easeInOut",
                 }}
             >
-                <Card className="w-full max-w-sm bg-gray-50">
+                <Card className="w-full max-w-sm bg-surface">
                     <CardHeader>
                         <CardTitle className="text-5xl flex justify-center">
                             {t.create.title}
@@ -147,7 +181,7 @@ export const Create = () => {
                             </Dialog>
                         </div>
                         <CardDescription className="text-center">
-                            {t.create.avatarOptional}
+                            {t.create.avatarPrompt}
                         </CardDescription>
                         <div className="grid gap-2">
                             <Label htmlFor="name">{t.create.nameLabel}</Label>
@@ -155,8 +189,12 @@ export const Create = () => {
                         </div>
                     </CardContent>
                     <CardFooter>
-                        <Button className="w-full" onClick={handleLocation}>
-                            <ChevronRight/>
+                        <Button className="w-full" onClick={handleLocation} disabled={isCreating}>
+                            {isCreating ? (
+                                <Loader2 className="animate-spin"/>
+                            ) : (
+                                <ChevronRight/>
+                            )}
                             {t.create.createButton}
                         </Button>
                     </CardFooter>

@@ -1,12 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useRoom } from "@/context/RoomContext";
+import { ROUTES } from "@/constants/routes";
 import { useSocket } from "@/SocketContext";
 import { Layout } from "./Layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, Phone, Globe, ExternalLink, ChevronDown, ChevronUp, Timer, Trophy, LogOut } from "lucide-react";
-import { FollowerPointerCard } from "@/components/ui/following-pointer";
-import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -106,14 +107,14 @@ function TiebreakSpinner({ tiebreakInfo, onComplete, t }) {
     }, []);
 
     return (
-        <div className="bg-[#e8f0e8] px-6 pt-6 flex flex-col items-center justify-center">
-            <h1 className="text-3xl font-bold text-[#1a2e1a] mb-2">{t.results.tieBreakTitle}</h1>
-            <p className="text-[#5a7a5a] mb-8">{t.results.tieBreakSubtitle}</p>
+        <div className="flex-1 px-6 py-6 flex flex-col items-center justify-center">
+            <h1 className="text-3xl font-bold text-brand-ink mb-2">{t.results.tieBreakTitle}</h1>
+            <p className="text-muted-foreground mb-8">{t.results.tieBreakSubtitle}</p>
 
             <div className="relative w-full max-w-2xl">
-                <ChevronDown className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 w-5 h-5 text-[#2d6a2d]" />
-                <ChevronUp className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20 w-5 h-5 text-[#2d6a2d]" />
-                <div className="absolute left-1/2 top-0 bottom-0 w-1 -translate-x-1/2 bg-[#2d6a2d]/40 z-10 rounded-full" />
+                <ChevronDown className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 w-5 h-5 text-primary" />
+                <ChevronUp className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20 w-5 h-5 text-primary" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-1 -translate-x-1/2 bg-primary/40 z-10 rounded-full" />
 
                 <div
                     className="relative overflow-hidden py-4 h-32 flex items-center"
@@ -134,7 +135,7 @@ function TiebreakSpinner({ tiebreakInfo, onComplete, t }) {
                                 <div
                                     key={`${place.place_id}-${index}`}
                                     className={`flex-shrink-0 bg-white rounded-2xl border overflow-hidden flex flex-col items-center justify-center transition-all duration-500 ${
-                                        isWinnerCard ? 'border-[#2d6a2d] scale-110 shadow-lg' : 'border-[#c8dcc8] shadow-sm'
+                                        isWinnerCard ? 'border-primary scale-110 shadow-lg' : 'border-surface-border shadow-sm'
                                     }`}
                                     style={{ width: TIEBREAK_CARD_WIDTH, height: 112 }}
                                 >
@@ -145,9 +146,9 @@ function TiebreakSpinner({ tiebreakInfo, onComplete, t }) {
                                             className="w-full h-14 object-cover"
                                         />
                                     ) : (
-                                        <div className="w-full h-14 bg-[#c8dcc8]" />
+                                        <div className="w-full h-14 bg-surface-border" />
                                     )}
-                                    <span className="text-xs font-semibold text-[#1a2e1a] line-clamp-1 px-2 pt-1 w-full text-center">
+                                    <span className="text-xs font-semibold text-brand-ink line-clamp-1 px-2 pt-1 w-full text-center">
                                         {place.name}
                                     </span>
                                 </div>
@@ -162,52 +163,17 @@ function TiebreakSpinner({ tiebreakInfo, onComplete, t }) {
                     settled ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                 }`}
             >
-                <p className="text-[#5a7a5a] font-medium mb-1">{t.results.tieBreakWinnerLabel}</p>
-                <h2 className="text-2xl font-bold text-[#1a2e1a] uppercase tracking-wide">{winner?.name}</h2>
+                <p className="text-muted-foreground font-medium mb-1">{t.results.tieBreakWinnerLabel}</p>
+                <h2 className="text-2xl font-bold text-brand-ink uppercase tracking-wide">{winner?.name}</h2>
             </div>
         </div>
     );
 }
 
 
-function RemoteCursor({ user, avatar, x, y }) {
-    const motionX = useMotionValue(x);
-    const motionY = useMotionValue(y);
-    const springX = useSpring(motionX, { stiffness: 1000, damping: 50, mass: 0.1 });
-    const springY = useSpring(motionY, { stiffness: 1000, damping: 50, mass: 0.1 });
-
-    useEffect(() => {
-        motionX.set(x);
-        motionY.set(y);
-    }, [x, y]);
-
-    return (
-        <motion.div
-            className="pointer-events-none absolute z-50"
-            style={{ left: springX, top: springY }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-        >
-            <svg
-                stroke="currentColor" fill="currentColor" strokeWidth="1"
-                viewBox="0 0 16 16"
-                className="h-5 w-5 -rotate-[70deg] text-[#2d6a2d] drop-shadow"
-                xmlns="http://www.w3.org/2000/svg"
-            >
-                <path d="M14.082 2.182a.5.5 0 0 1 .103.557L8.528 15.467a.5.5 0 0 1-.917-.007L5.57 10.694.803 8.652a.5.5 0 0 1-.006-.916l12.728-5.657a.5.5 0 0 1 .556.103z" />
-            </svg>
-            <div className="ml-4 -mt-1 flex items-center gap-1.5 bg-[#1a2e1a] text-white text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap shadow">
-                {avatar && <img src={avatar} alt="" aria-hidden="true" className="w-4 h-4 rounded-full object-cover" />}
-                <span>{user}</span>
-            </div>
-        </motion.div>
-    );
-}
-
 export const Results = () => {
     const { socket } = useSocket();
-    const { code } = useParams();
+    const { code } = useRoom();
     const navigate = useNavigate();
     const { toast } = useToast();
     const t = useStrings();
@@ -239,12 +205,8 @@ export const Results = () => {
     const resultsContainerRef = useRef(null);
     const [containerHeight, setContainerHeight] = useState('calc(100dvh - 200px)');
 
-    const [remoteCursors, setRemoteCursors] = useState({}); // { username: { x, y, avatar } }
-
     const loadingDetailRef = useRef(null);
     const timerIntervalRef = useRef(null);
-    const listPanelRef = useRef(null);
-    const throttleRef = useRef(null);
 
     const isLocked = lockedPlayers.some(p => p.name === socket?.auth?.token);
 
@@ -354,22 +316,6 @@ export const Results = () => {
         socket.on('phase_start', handlePhaseStart);
         socket.on('phase_extend', handlePhaseExtend);
         socket.on('restaurantVoteCount', handleVoteCount);
-        const handleHostLeft = () => {
-            socket.disconnect();
-            navigate('/', { state: { hostLeft: true } });
-        };
-
-        const handleRemoteCursorMove = ({ user, avatar, x, y }) => {
-            setRemoteCursors(prev => ({ ...prev, [user]: { x, y, avatar } }));
-        };
-
-        const handleRemoteCursorLeave = ({ user }) => {
-            setRemoteCursors(prev => {
-                const next = { ...prev };
-                delete next[user];
-                return next;
-            });
-        };
 
         const handleHostTransferred = ({ newHost }) => {
             toast({
@@ -380,10 +326,7 @@ export const Results = () => {
         };
 
         socket.on('winner', handleWinner);
-        socket.on('hostLeft', handleHostLeft);
         socket.on('hostTransferred', handleHostTransferred);
-        socket.on('cursorMove', handleRemoteCursorMove);
-        socket.on('cursorLeave', handleRemoteCursorLeave);
 
         return () => {
             socket.off('selfInfo', handleSelfInfo);
@@ -393,10 +336,7 @@ export const Results = () => {
             socket.off('phase_extend', handlePhaseExtend);
             socket.off('restaurantVoteCount', handleVoteCount);
             socket.off('winner', handleWinner);
-            socket.off('hostLeft', handleHostLeft);
             socket.off('hostTransferred', handleHostTransferred);
-            socket.off('cursorMove', handleRemoteCursorMove);
-            socket.off('cursorLeave', handleRemoteCursorLeave);
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
         };
     }, [code, socket, toast, t]);
@@ -442,21 +382,6 @@ export const Results = () => {
         }
     };
 
-    const handlePanelMouseMove = (e) => {
-        if (throttleRef.current) return;
-        throttleRef.current = setTimeout(() => { throttleRef.current = null; }, 16);
-
-        const rect = listPanelRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        socket.emit('cursorMove', { lobbyCode: code, x, y });
-    };
-
-    const handlePanelMouseLeave = () => {
-        socket.emit('cursorLeave', { lobbyCode: code });
-    };
-
     const handleVoteRestaurant = (placeId) => {
         if (myVote || !isLocked) return;
         setMyVote(placeId);
@@ -465,7 +390,7 @@ export const Results = () => {
 
     const handleExit = () => {
         socket?.disconnect();
-        navigate('/');
+        navigate(ROUTES.home);
     };
 
     const handleExitVoting = () => {
@@ -483,7 +408,7 @@ export const Results = () => {
         ? [places[0].geometry.location.lat, places[0].geometry.location.lng]
         : [35.85, -79.56];
 
-    const timerColor = timeLeft <= 10 ? 'text-red-500' : timeLeft <= 20 ? 'text-yellow-500' : 'text-[#1a2e1a]';
+    const timerColor = timeLeft <= 10 ? 'text-red-500' : timeLeft <= 20 ? 'text-yellow-500' : 'text-brand-ink';
 
     if (phase === 'tiebreak' && tiebreakInfo) {
         return (
@@ -497,14 +422,14 @@ export const Results = () => {
         const details = winnerDetails || placeDetailsMap[winnerPlace.place_id];
         return (
             <Layout user={socket?.auth?.token} avatar={socket?.auth?.avatar}>
-                <div className="bg-[#e8f0e8] px-6 pt-6 flex flex-col items-center justify-center">
+                <div className="flex-1 px-6 py-6 flex flex-col items-center justify-center">
                     <div className="flex items-center gap-3 mb-6">
                         <Trophy className="w-8 h-8 text-yellow-500 fill-yellow-400" />
-                        <h1 className="text-3xl font-bold text-[#1a2e1a]">{t.results.goingTo}</h1>
+                        <h1 className="text-3xl font-bold text-brand-ink">{t.results.goingTo}</h1>
                         <Trophy className="w-8 h-8 text-yellow-500 fill-yellow-400" />
                     </div>
 
-                    <div className="bg-white rounded-2xl shadow-lg overflow-hidden w-full max-w-lg">
+                    <div className="bg-surface border border-surface-border rounded-3xl shadow-md overflow-hidden w-full max-w-lg">
                         {details?.photos?.[0]?.photo_reference && (
                             <img
                                 src={`${API_BASE_URL}/api/place-photo?ref=${details.photos[0].photo_reference}`}
@@ -513,7 +438,7 @@ export const Results = () => {
                             />
                         )}
                         <div className="p-6 space-y-3">
-                            <h2 className="text-2xl font-bold text-[#1a2e1a]">{winnerPlace.name}</h2>
+                            <h2 className="text-2xl font-bold text-brand-ink">{winnerPlace.name}</h2>
 
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold text-lg">{winnerPlace.rating}</span>
@@ -555,14 +480,14 @@ export const Results = () => {
                                 <div className="flex gap-2 items-center">
                                     <Globe className="w-4 h-4 shrink-0 text-muted-foreground" />
                                     <a href={details.website} target="_blank" rel="noopener noreferrer"
-                                        className="text-sm text-[#2d6a2d] hover:underline truncate">
+                                        className="text-sm text-primary hover:underline truncate">
                                         {details.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
                                     </a>
                                 </div>
                             )}
                             {details?.url && (
                                 <a href={details.url} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-2 text-sm text-[#2d6a2d] hover:underline pt-1">
+                                    className="flex items-center gap-2 text-sm text-primary hover:underline pt-1">
                                     <ExternalLink className="w-4 h-4" />
                                     {t.results.viewOnGoogleMaps}
                                 </a>
@@ -572,7 +497,7 @@ export const Results = () => {
 
                     <Button
                         onClick={handleExit}
-                        className="mt-6 mb-6 bg-[#1a2e1a] hover:bg-[#2d6a2d] text-white"
+                        variant="outline" className="mt-6 mb-6 bg-transparent"
                     >
                         <LogOut className="w-4 h-4 mr-2" />
                         {t.results.exit}
@@ -587,7 +512,7 @@ export const Results = () => {
         <Layout user={socket?.auth?.token} avatar={socket?.auth?.avatar}>
             <div
                 ref={resultsContainerRef}
-                className="bg-[#e8f0e8] px-6 pt-4 flex flex-col"
+                className="px-6 pt-4 flex flex-col"
                 style={{ height: containerHeight }}
             >
 
@@ -597,16 +522,16 @@ export const Results = () => {
                         <Timer className={`w-5 h-5 ${timerColor}`} />
                         <span className={`text-xl font-bold tabular-nums ${timerColor}`}>{timeLeft}s</span>
                     </div>
-                    <div className="text-sm font-semibold text-[#1a2e1a] bg-white px-4 py-1.5 rounded-full shadow-sm">
+                    <div className="text-sm font-semibold text-brand-ink bg-surface border border-surface-border px-4 py-1.5 rounded-full shadow-sm">
                         {voteCount.voted} / {voteCount.total || lockedPlayers.length} {t.results.votedSuffix}
                     </div>
                     <div className="flex items-center gap-3">
                         {!isLocked && (
-                            <span className="text-sm text-[#5a7a5a] italic">{t.results.watching}</span>
+                            <span className="text-sm text-muted-foreground italic">{t.results.watching}</span>
                         )}
                         <Button
                             onClick={handleExitVoting}
-                            className="bg-[#1a2e1a] hover:bg-[#2d6a2d] text-white"
+                            variant="outline" className="bg-transparent"
                         >
                             <LogOut className="w-4 h-4 mr-2" />
                             {t.results.exit}
@@ -627,32 +552,11 @@ export const Results = () => {
                     </div>
                 )}
 
-                <div className="flex w-[90%] lg:w-[80%] mx-auto gap-4 pb-6 flex-1 min-h-0">
+                <div className="flex flex-col md:flex-row w-[90%] lg:w-[80%] mx-auto gap-4 pb-6 flex-1 min-h-0">
 
-                    {/* Left: restaurant list with live cursors */}
-                    <FollowerPointerCard
-                        className="w-[40%] rounded-xl overflow-hidden shadow-sm"
-                        title={
-                            <div className="flex items-center gap-1.5">
-                                {socket?.auth?.avatar && (
-                                    <img src={socket.auth.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                                )}
-                                <span>{socket?.auth?.token}</span>
-                            </div>
-                        }
-                    >
-                    <div
-                        ref={listPanelRef}
-                        className="relative h-full overflow-y-auto bg-white"
-                        onMouseMove={handlePanelMouseMove}
-                        onMouseLeave={handlePanelMouseLeave}
-                    >
-                        {/* Remote cursors */}
-                        <AnimatePresence>
-                            {Object.entries(remoteCursors).map(([user, { x, y, avatar }]) => (
-                                <RemoteCursor key={user} user={user} avatar={avatar} x={x} y={y} />
-                            ))}
-                        </AnimatePresence>
+                    {/* Restaurant list: below the map on phones, left column on larger screens */}
+                    <div className="order-2 md:order-1 flex flex-col flex-1 md:flex-none min-h-0 w-full md:w-[40%] rounded-2xl overflow-hidden border border-surface-border shadow-md">
+                    <div className="flex-1 min-h-0 overflow-y-auto bg-white">
                         {loading ? (
                             <div className="p-4 space-y-3">
                                 {Array.from({ length: 5 }).map((_, i) => (
@@ -675,15 +579,15 @@ export const Results = () => {
                                             initial={reducedMotion ? false : { opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ duration: reducedMotion ? 0 : 0.3, ease: "easeOut", delay: reducedMotion ? 0 : index * 0.04 }}
-                                            className={`rounded-xl border shadow-sm hover:shadow-md transition-shadow overflow-hidden ${hasVotedThis ? 'border-[#2d6a2d] bg-[#e8f0e8]' : 'border-[#c8dcc8] bg-white'}`}
+                                            className={`rounded-xl border shadow-sm hover:shadow-md transition-shadow overflow-hidden ${hasVotedThis ? 'border-primary bg-primary/10' : 'border-surface-border bg-white'}`}
                                         >
                                             <div
-                                                className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[#e8f0e8] transition-colors"
+                                                className="flex items-center gap-3 p-4 cursor-pointer hover:bg-surface-muted transition-colors"
                                                 onClick={() => handleSelectPlace(place)}
                                             >
                                                 <span className="font-medium flex-1 truncate">{place.name}</span>
                                                 {hasVotedThis && (
-                                                    <span className="text-xs text-[#2d6a2d] font-semibold shrink-0">{t.results.votedCheck}</span>
+                                                    <span className="text-xs text-primary font-semibold shrink-0">{t.results.votedCheck}</span>
                                                 )}
                                                 {isExpanded
                                                     ? <ChevronUp className="w-4 h-4 shrink-0 text-muted-foreground" />
@@ -696,7 +600,7 @@ export const Results = () => {
                                                     initial={reducedMotion ? false : { opacity: 0, y: 10 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     transition={{ duration: reducedMotion ? 0 : 0.25, ease: "easeOut" }}
-                                                    className="px-5 pb-5 bg-white space-y-3 border-t border-[#c8dcc8] pt-3"
+                                                    className="px-5 pb-5 bg-white space-y-3 border-t border-surface-border pt-3"
                                                 >
                                                     {isLoadingDetails ? (
                                                         <div className="space-y-2 pt-2">
@@ -753,14 +657,14 @@ export const Results = () => {
                                                                 <div className="flex gap-2 items-center">
                                                                     <Globe className="w-4 h-4 shrink-0 text-muted-foreground" />
                                                                     <a href={details.website} target="_blank" rel="noopener noreferrer"
-                                                                        className="text-sm text-[#2d6a2d] hover:underline truncate">
+                                                                        className="text-sm text-primary hover:underline truncate">
                                                                         {details.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
                                                                     </a>
                                                                 </div>
                                                             )}
                                                             {details.url && (
                                                                 <a href={details.url} target="_blank" rel="noopener noreferrer"
-                                                                    className="flex items-center gap-2 text-sm text-[#2d6a2d] hover:underline pt-1">
+                                                                    className="flex items-center gap-2 text-sm text-primary hover:underline pt-1">
                                                                     <ExternalLink className="w-4 h-4" />
                                                                     {t.results.viewOnGoogleMaps}
                                                                 </a>
@@ -775,10 +679,10 @@ export const Results = () => {
                                                                     disabled={!!myVote}
                                                                     className={`mt-2 w-full py-2 rounded-lg text-sm font-semibold transition-colors ${
                                                                         hasVotedThis
-                                                                            ? 'bg-[#2d6a2d] text-white cursor-default'
+                                                                            ? 'bg-primary text-white cursor-default'
                                                                             : myVote
-                                                                                ? 'bg-[#c8dcc8] text-[#5a7a5a] cursor-not-allowed'
-                                                                                : 'bg-[#2d6a2d] hover:bg-[#266226] text-white cursor-pointer'
+                                                                                ? 'bg-surface-border text-muted-foreground cursor-not-allowed'
+                                                                                : 'bg-primary hover:bg-primary/90 text-white cursor-pointer'
                                                                     }`}
                                                                 >
                                                                     {hasVotedThis ? t.results.yourVote : myVote ? t.results.alreadyVoted : t.results.voteForThis}
@@ -794,10 +698,10 @@ export const Results = () => {
                             </div>
                         )}
                     </div>
-                    </FollowerPointerCard>
+                    </div>
 
-                    {/* Right: Leaflet map */}
-                    <div className="flex-1 rounded-xl overflow-hidden shadow-sm">
+                    {/* Leaflet map: on top on phones, right column on larger screens */}
+                    <div className="order-1 md:order-2 h-[38%] shrink-0 md:h-auto md:shrink md:flex-1 rounded-2xl overflow-hidden border border-surface-border shadow-md">
                         {loading ? (
                             <Skeleton className="w-full h-full" />
                         ) : places.length > 0 && (
@@ -832,9 +736,9 @@ export const Results = () => {
                                                         <span className="text-yellow-500 text-sm">
                                                             {'★'.repeat(Math.round(place.rating))}{'☆'.repeat(5 - Math.round(place.rating))}
                                                         </span>
-                                                        <span className="text-gray-500 text-xs">({place.user_ratings_total?.toLocaleString()})</span>
+                                                        <span className="text-muted-foreground text-xs">({place.user_ratings_total?.toLocaleString()})</span>
                                                         {place.price_level && (
-                                                            <span className="text-gray-500 text-xs ml-1">· {'$'.repeat(place.price_level)}</span>
+                                                            <span className="text-muted-foreground text-xs ml-1">· {'$'.repeat(place.price_level)}</span>
                                                         )}
                                                     </div>
                                                     {place.formatted_address && (

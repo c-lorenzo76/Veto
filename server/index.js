@@ -225,6 +225,7 @@ io.on("connection", socket => {
             code: lobbyCode,
             users: lobbyObj.users,
             host: lobbyObj.host,
+            phase: lobbyObj.phase,
         });
 
         socket.emit("lobbyJoined", lobbyCode);
@@ -268,6 +269,7 @@ io.on("connection", socket => {
             code: lobbyCode,
             users: lobby.users,
             host: lobby.host,
+            phase: lobby.phase,
         });
 
         // Tell this specific socket whether they're the host (server-authoritative)
@@ -307,6 +309,7 @@ io.on("connection", socket => {
             code: lobbyCode,
             users: lobby.users,
             host: lobby.host,
+            phase: lobby.phase,
         });
 
         console.log(`Host kicked ${targetUser} from lobby ${lobbyCode}`);
@@ -333,6 +336,7 @@ io.on("connection", socket => {
             code: lobbyCode,
             users: lobby.users,
             host: lobby.host,
+            phase: lobby.phase,
         });
         io.to(lobbyCode).emit('hostTransferred', { newHost: successor.name });
 
@@ -465,6 +469,11 @@ io.on("connection", socket => {
                 }
 
                 lobby.users = lobby.users.filter(u => u.name !== socket.data.user);
+                // During the poll, drop the leaver from the locked roster so vote
+                // totals (x / N) reflect who is actually still playing.
+                if (lobby.phase === 'poll') {
+                    lobby.lockedPlayers = lobby.lockedPlayers.filter(p => p.name !== socket.data.user);
+                }
                 lobby.poll.forEach(question => {
                     question.options.forEach(option => {
                         option.votes = option.votes.filter(vote => vote !== socket.data.user);

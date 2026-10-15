@@ -1,9 +1,14 @@
 import { Button } from "@/components/ui/button";
-import { Copy, XCircle, Crown } from 'lucide-react';
+import { Copy, Crown, LogOut } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 import { Footer } from "@/components/Footer";
+import { VetoWordmark } from "@/components/VetoWordmark";
+import { FloatingSquares } from "@/components/FloatingSquares";
 import { useSocket } from "@/SocketContext";
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useRoom } from "@/context/RoomContext";
+import { ROUTES } from "@/constants/routes";
 import { motion, useReducedMotion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast"
 import { useLeaveGuard } from "@/hooks/useLeaveGuard";
@@ -16,7 +21,7 @@ const RIPPLE_COLS = 27;
 
 export const Lobby = () => {
     const { socket } = useSocket();
-    const { code } = useParams(); // Extract lobby code from the URL parameters
+    const { code, setPhase } = useRoom();
     const navigate = useNavigate();
     const { toast } = useToast();
     const t = useStrings();
@@ -28,6 +33,7 @@ export const Lobby = () => {
     const [host, setHost] = useState(null);
     const [rippleTrigger, setRippleTrigger] = useState(0);
     const [rippleOrigin, setRippleOrigin] = useState(null);
+    const [isLoadingLobby, setIsLoadingLobby] = useState(true);
 
     useLeaveGuard({ socket, code, isHost });
 
@@ -106,53 +112,50 @@ export const Lobby = () => {
 
         socket.emit('updateLobby', { lobbyCode: code });
 
-        socket.on("lobbyInfo", (lobby) => {
+        // Named handlers: socket.off(event) without one would also remove the
+        // listeners Room.jsx registers for the same events.
+        const handleLobbyInfo = (lobby) => {
             setLobbyCode(lobby.code);
             setUsers(lobby.users);
             setHost(lobby.host);
-        });
+            setIsLoadingLobby(false);
+        };
 
-        socket.on("selfInfo", ({ isHost: hostStatus }) => {
+        const handleSelfInfo = ({ isHost: hostStatus }) => {
             setIsHost(hostStatus);
-        });
+        };
 
-        socket.on('gameStarted', () => {
-            navigate(`/Questions/${code}`);
-        });
+        const handleGameStarted = () => {
+            setPhase("poll");
+        };
 
-        socket.on("userDisconnect", (discPlayer) => {
+        const handleUserDisconnect = (discPlayer) => {
             setUsers((prevState) => prevState.filter((u) => u.name !== discPlayer));
             console.log(discPlayer, "Disconnected")
-        });
+        };
 
-        socket.on("kicked", () => {
-            socket.disconnect();
-            navigate('/', { state: { kicked: true } });
-        });
-
-        socket.on("hostLeft", () => {
-            socket.disconnect();
-            navigate('/', { state: { hostLeft: true } });
-        });
-
-        socket.on("hostTransferred", ({ newHost }) => {
+        const handleHostTransferred = ({ newHost }) => {
             toast({
                 title: t.lobby.newHostTitle,
                 description: t.lobby.newHostDescription(newHost),
                 duration: 2500,
             });
-        });
+        };
+
+        socket.on("lobbyInfo", handleLobbyInfo);
+        socket.on("selfInfo", handleSelfInfo);
+        socket.on("gameStarted", handleGameStarted);
+        socket.on("userDisconnect", handleUserDisconnect);
+        socket.on("hostTransferred", handleHostTransferred);
 
         return () => {
-            socket.off("lobbyInfo");
-            socket.off("selfInfo");
-            socket.off("gameStarted");
-            socket.off("userDisconnect");
-            socket.off("kicked");
-            socket.off("hostLeft");
-            socket.off("hostTransferred");
+            socket.off("lobbyInfo", handleLobbyInfo);
+            socket.off("selfInfo", handleSelfInfo);
+            socket.off("gameStarted", handleGameStarted);
+            socket.off("userDisconnect", handleUserDisconnect);
+            socket.off("hostTransferred", handleHostTransferred);
         };
-    }, [code, socket, t]);
+    }, [code, socket, t, setPhase]);
 
     const handleStartGame = () => {
         socket.emit('startGame', { lobbyCode: code });
@@ -160,6 +163,18 @@ export const Lobby = () => {
 
     const handleKick = (targetUser) => {
         socket.emit('kickUser', { lobbyCode: code, targetUser });
+    };
+
+    const handleLeaveLobby = () => {
+        const message = isHost ? t.leaveGuard.hostLeaveMessage : t.leaveGuard.playerLeaveMessage;
+        const confirmed = window.confirm(message);
+        if (!confirmed) return;
+
+        if (isHost && socket && code) {
+            socket.emit('transferHost', { lobbyCode: code });
+        }
+        socket?.disconnect();
+        navigate(ROUTES.home);
     };
 
     const handleCopyPin = () => {
@@ -188,28 +203,33 @@ export const Lobby = () => {
 
     return (
 
-        <div className="flex flex-col min-h-screen bg-[#c8dcc8]">
+        <div className="flex flex-col min-h-screen bg-gradient-to-b from-page-top via-page-mid to-page-bottom">
 
-            <div className="flex flex-wrap gap-2 mx-auto items-left w-[90%] lg:w-[80%] p-6 bg-[#1a2e1a] mt-8 rounded-3xl">
-                <div className="flex items-center">
-                    <span className="text-lg text-white font-bold">Ve</span>
-                    <span className="text-lg text-yellow-500 font-bold">to</span>
-                </div>
+            <div className="flex flex-wrap gap-2 mx-auto items-center w-[90%] lg:w-[80%] px-6 py-5 bg-surface border border-surface-border shadow-md mt-8 rounded-3xl">
+                <VetoWordmark size="sm" onDark={false} />
 
-                <div className="flex items-center ml-auto">
+                <div className="flex items-center gap-3 ml-auto">
                     <div className="start-button flex justify-center items-center">
                         {isHost && (
                             <Button
-                                className="bg-gradient-to-r from-lime-400 to-lime-500 text-black px-8"
+                                className="text-white px-8"
                                 onClick={handleStartGame}
                             >
                                 {t.lobby.start}
                             </Button>
                         )}
                         {!isHost && (
-                            <span className="text-gray-300 italic">{t.lobby.waitingForHost}</span>
+                            <span className="text-muted-foreground italic">{t.lobby.waitingForHost}</span>
                         )}
                     </div>
+                    <Button
+                        variant="outline"
+                        className="bg-transparent"
+                        onClick={handleLeaveLobby}
+                    >
+                        <LogOut className="w-4 h-4 mr-1" />
+                        {t.lobby.leave}
+                    </Button>
                 </div>
             </div>
 
@@ -222,105 +242,62 @@ export const Lobby = () => {
                     ease: "easeInOut",
                 }}
             >
-                <div className="game-pin w-[90%] lg:w-[80%] mx-auto flex flex-col items-left p-10 bg-[#1a2e1a] mt-6 rounded-3xl" >
-                    <h6 className="text-[#2d6a2d] font-bold">
-                        {t.lobby.roomPin}
-                    </h6>
-                    <h1 className="flex items-left text-4xl font-bold text-white tracking-wider">
-                        {lobbyCode || t.lobby.loading}
-                        <button
-                            type="button"
-                            aria-label={t.lobby.copyPinLabel}
-                            className="ml-2 cursor-pointer bg-transparent border-0 p-0 inline-flex items-center"
-                            onClick={() => {
-                                if (lobbyCode) {
-                                    handleCopyPin();
-                                }
-                            }}
-                        >
-                            <Copy />
-                        </button>
-                    </h1>
+                <div className="game-pin relative overflow-hidden w-[90%] lg:w-[80%] mx-auto flex items-center justify-between gap-4 px-8 py-8 bg-surface border border-surface-border shadow-md mt-6 rounded-3xl">
+                    <FloatingSquares />
+                    <div aria-hidden="true" className="pointer-events-none absolute -top-16 -right-10 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+                    <div aria-hidden="true" className="pointer-events-none absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-yellow-400/15 blur-3xl" />
+                    <div className="relative flex items-stretch gap-4">
+                        <div aria-hidden="true" className="w-1 rounded-full bg-gradient-to-b from-primary to-gold" />
+                        <div className="flex flex-col">
+                            <h6 className="text-primary font-bold uppercase tracking-widest text-xs">
+                                {t.lobby.roomPin}
+                            </h6>
+                            <h1 className="text-5xl font-bold text-brand-ink tracking-[0.2em] mt-1">
+                                {lobbyCode || t.lobby.loading}
+                            </h1>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        aria-label={t.lobby.copyPinLabel}
+                        className="relative cursor-pointer inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-white border border-surface-border text-brand-ink shadow-sm hover:bg-surface-muted transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                        onClick={() => {
+                            if (lobbyCode) {
+                                handleCopyPin();
+                            }
+                        }}
+                    >
+                        <Copy />
+                    </button>
                 </div>
             </motion.div>
 
-            {/* <div className="sub-nav w-full m-8 grid grid-cols-3 mx-auto items-center">
-                <motion.div
-                    initial={{ opacity: 0.0, x: 0 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    transition={{
-                        delay: 0.3,
-                        duration: 0.95,
-                        ease: "easeInOut",
-                    }}
-                >
-                    <div className="players-joined flex justify-center items-center ">
-                        <Button>
-                            <Dot size={24} className="mr-2 text-red-500" />
-                            <span>{users.length}</span>
-                            <User size={24} className="ml-2" />
-                        </Button>
+            <section className="flex flex-col flex-grow mx-auto w-[90%] lg:w-[80%] mt-6">
+                <div className="flex items-center mb-3">
+                    <h2 className="text-2xl font-bold text-brand-ink">{t.lobby.players}</h2>
+                    <div className="flex items-center ml-auto">
+                        <span className="text-brand-ink font-semibold">{users.length}</span>
+                        <span className="ml-2 text-brand-ink/60">{t.lobby.joined}</span>
                     </div>
-                </motion.div>
-                <motion.div
-                    initial={{ opacity: 0.0, y: 0 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{
-                        delay: 0.3,
-                        duration: 0.95,
-                        ease: "easeInOut",
-                    }}
-                >
-                    <div className="veto-title flex justify-center items-center">
-                        <h1 className="text-5xl font-bold bg-transparent text:shadow-lg">Veto</h1>
-                    </div>
-                </motion.div>
-                <motion.div
-                    initial={{ opacity: 0.0, x: 0 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    transition={{
-                        delay: 0.3,
-                        duration: 0.95,
-                        ease: "easeInOut",
-                    }}
-                >
-                    <div className="start-button flex justify-center items-center">
-                        {isHost && (
-                            <Button
-                                className="bg-gradient-to-r from-lime-400 to-lime-500 text-black px-8"
-                                onClick={handleStartGame}
-                            >
-                                Start
-                            </Button>
-                        )}
-                    </div>
-                </motion.div>
-            </div> */}
-
-            {/* <div className="flex border-t-2 justify-center items-center p-5 space-x-2">
-                <ChevronsLeft />
-                <h2 className="mt text-2xl text-center font-bold">Joined users</h2>
-                <ChevronsRight />
-            </div> */}
-
-            <div className="flex mx-auto w-[90%] lg:w-[80%] mt-6">
-                <h2 className=" text-2xl font-bold text-black">{t.lobby.players}</h2>
-                <div className="flex items-center ml-auto">
-                    <span className="text-black">{users.length}</span>
-                    <span className="ml-2 text-gray-500">{t.lobby.joined}</span>
                 </div>
-            </div>
 
-            <div className="joined-users relative flex-grow min-h-[22rem] overflow-hidden" ref={rippleContainerRef}>
-                <BackgroundRippleEffect
-                    rows={RIPPLE_ROWS}
-                    cols={RIPPLE_COLS}
-                    rippleTrigger={rippleTrigger}
-                    rippleOrigin={rippleOrigin}
-                />
-                <div className="relative z-10 m-8 mx-auto w-[90%] lg:w-[80%]">
+                <div className="joined-users relative flex-grow min-h-[22rem] overflow-hidden rounded-3xl border border-surface-border bg-surface/60" ref={rippleContainerRef}>
+                    <BackgroundRippleEffect
+                        rows={RIPPLE_ROWS}
+                        cols={RIPPLE_COLS}
+                        rippleTrigger={rippleTrigger}
+                        rippleOrigin={rippleOrigin}
+                    />
+                    <div className="relative z-10 p-6 sm:p-8">
                     <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        {users.map((user, index) => {
+                        {isLoadingLobby ? (
+                            Array.from({ length: 3 }).map((_, index) => (
+                                <div key={index} className="flex items-center space-x-4 bg-white/80 dark:bg-slate-800 border border-surface-border dark:border-slate-700 rounded-xl p-4 shadow-sm">
+                                    <Skeleton className="flex-shrink-0 h-14 w-14 rounded-full" />
+                                    <Skeleton className="h-5 w-24" />
+                                </div>
+                            ))
+                        ) : users.map((user, index) => {
                             const userName = user?.name;
                             const displayName = userName || t.lobby.playerFallback;
                             const avatarSrc = user?.avatar || null;
@@ -347,22 +324,22 @@ export const Lobby = () => {
                                             inactiveZone={0.01}
                                             borderWidth={2}
                                         />
-                                        <div className="relative flex items-center space-x-4 bg-white/80 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow group">
+                                        <div className="relative flex items-center gap-4 bg-white/80 dark:bg-slate-800 border border-surface-border dark:border-slate-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow group">
                                             {isHost && userName !== socket?.auth?.token && (
                                                 <button
                                                     type="button"
                                                     onClick={() => handleKick(displayName)}
                                                     aria-label={t.lobby.kickPlayerLabel(displayName)}
-                                                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                                                    className="absolute top-2 right-2 rounded-full bg-red-500 px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm hover:bg-red-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity"
                                                 >
-                                                    <XCircle className="w-6 h-6 text-white fill-red-500" />
+                                                    {t.lobby.kick}
                                                 </button>
                                             )}
                                             {avatarSrc ? (
                                                 <img
                                                     src={avatarSrc}
                                                     alt={displayName}
-                                                    className="flex-shrink-0 h-14 w-14 rounded-full object-cover bg-gray-100"
+                                                    className="flex-shrink-0 h-14 w-14 rounded-full object-cover bg-surface-muted"
                                                     onError={(e) => {
                                                         // If image fails, hide it and insert a neutral placeholder (no initials)
                                                         e.currentTarget.style.display = "none";
@@ -370,19 +347,19 @@ export const Lobby = () => {
                                                         if (parent && !parent.querySelector(".avatar-placeholder")) {
                                                             const placeholder = document.createElement("div");
                                                             placeholder.className =
-                                                                "avatar-placeholder flex-shrink-0 h-14 w-14 rounded-full bg-gray-300 dark:bg-slate-700";
+                                                                "avatar-placeholder flex-shrink-0 h-14 w-14 rounded-full bg-surface-strong dark:bg-slate-700";
                                                             placeholder.setAttribute("aria-hidden", "true");
                                                             parent.insertBefore(placeholder, e.currentTarget);
                                                         }
                                                     }}
                                                 />
                                             ) : (
-                                                <div className="flex-shrink-0 h-14 w-14 rounded-full bg-gray-300 dark:bg-slate-700" aria-hidden="true" />
+                                                <div className="flex-shrink-0 h-14 w-14 rounded-full bg-surface-strong dark:bg-slate-700" aria-hidden="true" />
                                             )}
 
                                             <div className="flex flex-col min-w-0">
                                                 {isPlayerHost && (
-                                                    <span className="inline-flex items-center gap-1 bg-[#1a2e1a] text-[#f0f7f0] text-[10px] font-semibold px-1.5 py-0.5 rounded-full mb-1">
+                                                    <span className="inline-flex items-center gap-1 bg-brand-ink text-primary-foreground text-[10px] font-semibold px-1.5 py-0.5 rounded-full mb-1">
                                                         <Crown className="w-3 h-3 text-yellow-400" />
                                                         {t.lobby.hostBadge}
                                                     </span>
@@ -394,10 +371,11 @@ export const Lobby = () => {
                                 </motion.div>
                             );
                         })}
+                        </div>
                     </div>
                 </div>
-            </div>
-            <Footer />
+            </section>
+            <Footer className="mt-10" />
         </div>
     );
 };

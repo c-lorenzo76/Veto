@@ -18,6 +18,17 @@ module.exports = {
     },
     extend: {
       colors: {
+        "brand-ink": "hsl(var(--brand-ink))",
+        gold: "hsl(var(--gold))",
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          muted: "hsl(var(--surface-muted))",
+          border: "hsl(var(--surface-border))",
+          strong: "hsl(var(--surface-strong))",
+        },
+        "page-top": "hsl(var(--page-top))",
+        "page-mid": "hsl(var(--page-mid))",
+        "page-bottom": "hsl(var(--page-bottom))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
