@@ -1,9 +1,8 @@
 # Client
 
-## >> Start the client
+React + Vite frontend for Veto. Setup, environment variables and the project overview are in the [root README](../README.md); the client's structure and routing are in [ARCHITECTURE.md](../ARCHITECTURE.md).
+
 ```bash
-cd client
 npm install
-npm run dev
+npm run dev   # http://localhost:5173
 ```
-Then check Veto on localhost:5173

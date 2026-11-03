@@ -1,82 +1,50 @@
 # Veto
 
+Veto helps a group decide where to eat. Instead of just listing nearby restaurants, it collects everyone's preferences through a short live poll and recommends a place that fits the group.
+
 ## Background
-Veto was inspired by the many occurrences where my partner and I struggled to decide where to eat,
-often spending more time second-guessing our options than enjoying a meal.
-Our indecisiveness led me to create a solution — a website designed to help simplify the decision-making process.
-Unlike existing tools that merely list nearby restaurants, Veto takes group preferences into account to make a tailored recommendation.
+
+Veto was inspired by the many times my partner and I struggled to decide where to eat, often spending more time second-guessing our options than enjoying a meal. Our indecisiveness led me to build a tool that simplifies group decision-making.
 
 ## How it works
-1. A host creates a lobby and shares a 6-character PIN.
-2. Players join the lobby, then the host starts the game.
+
+1. A host creates a lobby and shares the 6-character PIN.
+2. Players join with the PIN, then the host starts the game.
 3. Everyone votes on a short poll (priority, price, cuisine, distance).
 4. The server queries the Google Places API and returns a shortlist of restaurants.
-5. Players vote on a final restaurant — the winner is revealed on a dedicated screen.
+5. Players vote on a final restaurant, and the winner is revealed on a dedicated screen.
 
-## Tech Stack
-- React 18 + Vite
-- Tailwind CSS + shadcn/ui + flowbite-react
-- Framer Motion
-- Socket.io (client + server)
-- react-leaflet v4 + OpenStreetMap
-- Node.js + Express
-- Google Places API (Text Search, Place Details, Place Photo)
+## Getting started
 
-See [CLAUDE.md](./CLAUDE.md) for full architecture, socket event reference, and implementation details.
+**Prerequisites:** Node.js 20 and a Google Places API key.
 
-## Directory Structure
-    client/                React/Vite frontend
-        src/
-            assets/         Static images (avatars, etc.)
-            components/     Shared components (shadcn, navbar, footer, avatar picker)
-            lib/             Tailwind utility helpers
-            pages/           Route-level pages (Home, Create, Join, Lobby, Questions, Results)
-    server/                 Express + Socket.io backend
-        index.js             All backend/game logic
+1. Create `server/.env` and `client/.env` with the variables listed in [ARCHITECTURE.md](./ARCHITECTURE.md#environment-variables).
+2. Start the backend (port 8000):
 
-## Setup
+   ```bash
+   cd server
+   npm install
+   npm start
+   ```
 
-### Environment variables
-**Server** (`server/.env`, see `server/.env.example`):
-```
-SECRET_KEY=your_google_places_api_key
-CLIENT_ORIGIN=http://localhost:5173   # your deployed client's origin in production
-```
+3. In a second terminal, start the frontend (port 5173):
 
-**Client** (`client/.env`):
-```
-VITE_MAPS_KEY=your_google_maps_key
-```
+   ```bash
+   cd client
+   npm install
+   npm run dev
+   ```
 
-### Run the server
-```
-cd server
-npm i
-npm start
-```
-Runs on `localhost:8000`.
+4. Open <http://localhost:5173>.
 
-### Run the client
-In a separate terminal:
-```
-cd client
-npm i
-npm run dev
-```
-Runs on `localhost:5173`.
+To run both in containers instead, use `docker-compose up` (see [DEPLOYMENT.md](./DEPLOYMENT.md#local-container-testing)).
 
-## Deployment
+Run the server tests with `cd server && npm test`.
 
-Veto deploys to 4 Azure environments via GitHub Actions:
+## Documentation
 
-| Branch | Environment | Trigger |
-|---|---|---|
-| `feature/*` | Dev1 | Auto-deploy on push |
-| `develop` | Dev | Manual approval |
-| `uat` | UAT | Manual approval |
-| `main` | Prod | Manual approval (admins only) |
-
-CI (`ci.yml`) runs lint, build, tests, and security scanning on every push and PR. See [DEPLOYMENT.md](./DEPLOYMENT.md) for full Azure infrastructure setup and the deployment pipeline.
-
-## Known gaps
-See the "What's NOT Yet Built" section in [CLAUDE.md](./CLAUDE.md) for the current backlog (persistence, auth, mobile layout, etc.).
+| Document | What's in it |
+|---|---|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Tech stack, project structure, routing, game flow, socket events, server data model, styling conventions |
+| [DEPLOYMENT.md](./DEPLOYMENT.md) | Environments and branch mapping, Azure setup, the CI/CD pipeline, troubleshooting |
+| [specs/](./specs) | Feature specs (format in `specs/_template.md`); only specs marked `Approved` are implemented |
