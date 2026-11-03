@@ -1,54 +1,62 @@
 # Veto Deployment Guide
 
-This guide covers the multi-environment deployment setup for Veto using Azure Container Apps, Static Web Apps, and GitHub Actions.
+How Veto is built, deployed and operated: Azure Container Apps (server), Azure Static Web Apps (client) and GitHub Actions (CI/CD) across four environments. For the app itself, see [ARCHITECTURE.md](./ARCHITECTURE.md); for local setup, see [README.md](./README.md#getting-started).
 
-## Architecture Overview
+**Contents:** [Overview](#overview) · [What's in the repo](#whats-in-the-repo) · [Azure setup](#azure-setup-one-time) · [Testing the pipeline](#10-test-the-pipeline) · [Troubleshooting](#troubleshooting) · [Environment URLs](#environment-urls) · [Next steps](#next-steps) · [References](#references)
+
+---
+
+## Overview
+
+| Branch | Environment | Resource group | Deploy |
+|---|---|---|---|
+| `feature/*` | Dev1 | `veto-dev1` | Automatic on push |
+| `develop` | Dev | `veto-dev` | Manual approval |
+| `uat` | UAT | `veto-uat` | Manual approval |
+| `main` | Prod | `veto-prod` | Manual approval (admins only) |
 
 ```
-Feature Branch (feature/*)
-    ↓ (auto-deploy)
-Dev1 (azure-dev1)
-    ↓ (manual promotion)
-Develop Branch → Dev (azure-dev)
-    ↓ (manual promotion)
-UAT Branch → UAT (azure-uat)
-    ↓ (manual promotion)
-Main Branch → Prod (azure-prod)
+Feature branch (feature/*)  ──auto──▶  Dev1
+        │ merge
+Develop branch              ──approve─▶ Dev
+        │ promote
+UAT branch                  ──approve─▶ UAT
+        │ promote
+Main branch                 ──approve─▶ Prod
 ```
 
-## Completed: Code-Level Deployment Setup
+Each environment has its own resource group, Container App, Static Web App and Key Vault. Only the container registry (`vetoacr`) is shared.
 
-✅ **Containerization**
-- `Dockerfile`: Multi-stage build for Express server (Node 20 Alpine, ~11MB final image)
-- `client/Dockerfile`: Vite build + Nginx (SPA + API/Socket.io routing)
-- `client/nginx.conf`: Reverse proxy configuration
-  - Routes `/api/*` to backend Container App
-  - Routes `/socket.io*` to backend with WebSocket upgrade headers
-  - SPA fallback: all unmatched routes → `index.html`
+---
 
-✅ **Environment Configuration**
-- `.env.example`: Server environment variables (SECRET_KEY, CLIENT_ORIGIN, NODE_ENV)
-- `client/.env.example`: Client Vite build variable (VITE_API_BASE_URL)
-- Health check endpoint: `GET /health` (used by Azure for liveness probes)
+## What's in the repo
 
-✅ **GitHub Actions CD Workflow**
-- `.github/workflows/deploy.yml`: Orchestrates the deployment pipeline
-  - Triggers on: `push` to main, uat, develop, and all feature branches
-  - Determines environment based on branch
-  - Authenticates to Azure via OIDC (no static credentials stored)
-  - Builds and pushes server Docker image to Azure Container Registry
-  - Deploys server to Container App
-  - Builds client with environment-specific API base URL
-  - Deploys client to Static Web App
+**Containerization**
+- `Dockerfile`: multi-stage build for the Express server (Node 20 Alpine). This is the image `deploy.yml` builds and pushes.
+- `client/Dockerfile` and `client/nginx.conf`: Vite build served by Nginx, with `/api/*` and `/socket.io*` proxied to the server. Used for **local `docker-compose` testing only**; in Azure the client is served by Static Web Apps.
 
-✅ **Local Testing**
-- `docker-compose.yml`: Run server + client locally in containers
-  ```bash
-  docker-compose up
-  ```
-  Server: http://localhost:8000, Client: http://localhost:5173
+**Configuration**
+- Environment variables are documented in [ARCHITECTURE.md](./ARCHITECTURE.md#environment-variables). There are no `.env.example` files, so create `server/.env` and `client/.env` yourself.
+- In Azure, server secrets (`SECRET_KEY`, `CLIENT_ORIGIN`) come from each environment's Key Vault. `VITE_API_BASE_URL` is injected at client build time by `deploy.yml`.
+- Health check: `GET /health` (used by Azure for liveness probes).
 
-## TODO: Manual Azure Setup
+**GitHub Actions**
+- `.github/workflows/ci.yml`: lint, build, server tests, secret scanning (gitleaks) and CodeQL on every push and PR to `main`, `uat` and `develop`.
+- `.github/workflows/deploy.yml`: triggers on push to `main`, `uat`, `develop` and `feature/**` (or manually via `workflow_dispatch`). It determines the environment from the branch, authenticates to Azure via OIDC (no stored credentials), builds and pushes the server image to the registry, deploys the server to the Container App, builds the client with the environment's API base URL and deploys it to the Static Web App.
+
+### Local container testing
+
+```bash
+docker-compose up
+```
+
+Server: <http://localhost:8000>, client: <http://localhost:5173>.
+
+---
+
+## Azure setup (one-time)
+
+Run these once to create the infrastructure the pipeline deploys into.
 
 ### Prerequisites
 - Azure subscription
@@ -221,11 +229,11 @@ done
 
 Replace `c-lorenzo76/Veto` below with your actual `<owner>/<repo>` if different.
 
-**If you rename the repo after setting up federated credentials, redo this section.** Azure's federated credential `subject` is an exact string match against GitHub's OIDC token, which encodes the repo's *current* name — a rename breaks every existing credential silently (the `azure/login@v1` step starts failing with no useful error). Delete and recreate each federated credential with the new repo name (see step 3 below) rather than trying to edit it in place.
+**If you rename the repo after setting up federated credentials, redo this section.** Azure's federated credential `subject` is an exact string match against GitHub's OIDC token, which encodes the repo's *current* name — a rename breaks every existing credential silently (the `azure/login@v1` step starts failing with no useful error). Delete and recreate each federated credential with the new repo name (see 8.3 below) rather than trying to edit it in place.
 
 **Note on shell comments:** if pasting multi-line blocks into an interactive `zsh` session, strip any `#` comment lines first — interactive zsh doesn't treat `#` as a comment by default, so a standalone comment line fails with `command not found: #`. It's usually harmless (the real commands on other lines still run), but the blocks below are written comment-free to avoid the issue entirely, and each step includes its own verification command so a partial failure is easy to catch.
 
-**1. Create an app registration per environment:**
+#### 8.1 Create an app registration per environment
 
 ```bash
 for env in dev1 dev uat prod; do
@@ -233,7 +241,9 @@ for env in dev1 dev uat prod; do
 done
 ```
 
-**2. Create the service principal for each app registration** (`az ad app create` only creates the app registration, not the service principal Azure actually authenticates against):
+#### 8.2 Create the service principal for each app registration
+
+`az ad app create` only creates the app registration, not the service principal Azure actually authenticates against:
 
 ```bash
 for env in dev1 dev uat prod; do
@@ -242,7 +252,9 @@ for env in dev1 dev uat prod; do
 done
 ```
 
-**3. Add a federated identity credential per app**, scoped to the GitHub **Environment** rather than a specific branch. `deploy.yml`'s jobs already run under `environment: name: dev1/dev/uat/prod`, and Azure federated credential subjects require an exact string match (no wildcards) — an environment-scoped subject means any branch that resolves to that environment can authenticate, which matches this repo's branch→environment mapping without needing one credential per branch name:
+#### 8.3 Add a federated identity credential per app
+
+Each credential is scoped to the GitHub **Environment** rather than a specific branch. `deploy.yml`'s jobs already run under `environment: name: dev1/dev/uat/prod`, and Azure federated credential subjects require an exact string match (no wildcards) — an environment-scoped subject means any branch that resolves to that environment can authenticate, which matches this repo's branch→environment mapping without needing one credential per branch name:
 
 ```bash
 for env in dev1 dev uat prod; do
@@ -260,7 +272,9 @@ for env in dev1 dev uat prod; do
 done
 ```
 
-**4. Grant each service principal the permissions `deploy.yml` actually exercises** — read its Key Vault, push to the shared ACR, and update its Container App:
+#### 8.4 Grant each service principal the permissions `deploy.yml` actually exercises
+
+These are: read its Key Vault, push to the shared ACR, and update its Container App:
 
 ```bash
 for env in dev1 dev uat prod; do
@@ -282,7 +296,7 @@ done
 ```
 Each environment should list all 3 roles.
 
-**5. Get the values and store them as GitHub Environment Secrets:**
+#### 8.5 Get the values and store them as GitHub Environment Secrets
 
 ```bash
 for env in dev1 dev uat prod; do
@@ -298,7 +312,7 @@ Go to GitHub → **Settings → Environments** → for each of `dev1`, `dev`, `u
 - `AZURE_CLIENT_ID` — the environment-specific appId from above (different per environment)
 - `AZURE_TENANT_ID` — same value for all 4
 - `AZURE_SUBSCRIPTION_ID` — same value for all 4
-- `AZURE_STATIC_WEB_APPS_API_TOKEN` — the per-environment token retrieved back in step 5 (Static Web Apps)
+- `AZURE_STATIC_WEB_APPS_API_TOKEN` — the per-environment token retrieved in step 5 (Static Web Apps)
 
 ### 9. Configure Environment Protection Rules
 
@@ -322,7 +336,7 @@ Done via GitHub Environments, not branch protection rules — "Required reviewer
    → Should deploy to Dev1 automatically
 
 2. Check GitHub Actions: Actions tab → Deploy workflow → watch for completion
-3. Verify Dev1 deployment: `https://veto-dev1.azurestaticapps.net`
+3. Verify the Dev1 deployment at the URL from [Environment URLs](#environment-urls)
 
 4. Promote to Dev:
    ```bash
@@ -336,23 +350,27 @@ Done via GitHub Environments, not branch protection rules — "Required reviewer
 
 5. Repeat for UAT and Prod
 
+---
+
 ## Troubleshooting
 
 ### Container App shows "Inactive"
 - Check Container App revision logs: `az containerapp logs show`
-- Verify health check: `curl https://veto-server-dev1.azurecontainerapps.io/health`
+- Verify the health check: `curl https://<backend-fqdn>/health` (look up the FQDN under [Environment URLs](#environment-urls))
 
 ### Static Web App shows 404
 - Check if build/deploy succeeded: SWA → Deployments tab
-- Verify nginx.conf SPA routing is correct
+- **Direct links and reloads (e.g. `/room?id=CODE`):** Static Web Apps only serves `index.html` for unknown paths if the app has a `staticwebapp.config.json` with a `navigationFallback`. The repo does not have one yet (the Nginx config only applies to local `docker-compose`), so opening or reloading a deep link returns a 404 in Azure (confirmed when reloading). Add `client/public/staticwebapp.config.json` with `{ "navigationFallback": { "rewrite": "/index.html" } }` to fix it.
 
 ### OIDC authentication fails
 - Verify GitHub environment secrets are set correctly
 - Check OIDC token subject matches the federated credential
 
 ### Socket.io connection fails in production
-- Verify nginx.conf proxies `/socket.io` with `Upgrade` header
+- In Azure the browser connects straight to the Container App (via the `VITE_API_BASE_URL` baked into the client build), so confirm that URL is correct for the environment
 - Check CORS: `CLIENT_ORIGIN` must match frontend Static Web App URL
+
+---
 
 ## Environment URLs
 
@@ -368,12 +386,17 @@ done
 
 For Prod, you'll likely want to map a custom domain (e.g. `veto.app` / `api.veto.app`) once the auto-generated hostnames are confirmed working.
 
-## Next Steps
+---
 
-1. **Manual:** Run the Azure setup commands above (sections 1-9)
-2. **Verify:** Test the pipeline with a feature branch (section 10)
-3. **Monitor:** Set up Application Insights in Azure for logging/alerting
-4. **Custom Domain:** After Prod works, configure DNS and SSL cert
+## Next steps
+
+0. **TODO (known issue):** add `client/public/staticwebapp.config.json` with a `navigationFallback` so reloading or opening a deep link such as `/room?id=CODE` stops returning a 404 (see [Troubleshooting](#static-web-app-shows-404)).
+1. **Set up:** run the Azure setup steps above (sections 1-9).
+2. **Verify:** test the pipeline with a feature branch (section 10).
+3. **Monitor:** set up Application Insights in Azure for logging and alerting.
+4. **Custom domain:** once Prod works, configure DNS and an SSL certificate.
+
+---
 
 ## References
 

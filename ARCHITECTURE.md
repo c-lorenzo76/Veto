@@ -2,6 +2,10 @@
 
 **Veto** is a real-time multiplayer group restaurant decision app. A host creates a lobby, players join via a 6-character PIN, everyone votes on food preferences through a poll, and the server queries the Google Places API to return restaurant recommendations. Players then vote on a final restaurant — the winner is revealed on a dedicated winner screen.
 
+**Contents:** [Tech Stack](#tech-stack) · [Project Structure](#project-structure) · [Environment Variables](#environment-variables) · [Running Locally](#running-the-project-locally) · [Routing](#routing) · [App Flow](#full-app-flow) · [Server Data Model](#server-lobby-data-structure) · [Socket Events](#socket-events-reference) · [Implementation Details](#key-implementation-details) · [Styling](#styling-conventions) · [Testing](#testing) · [CI/CD](#cicd) · [Roadmap](#whats-not-yet-built--possible-next-steps)
+
+Related docs: [README.md](./README.md) (overview and setup) · [DEPLOYMENT.md](./DEPLOYMENT.md) (Azure and CI/CD) · [specs/](./specs) (feature specs).
+
 ---
 
 ## Tech Stack
@@ -11,8 +15,9 @@
 | Frontend | React 18 + Vite |
 | Styling | Tailwind CSS + shadcn/ui + flowbite-react |
 | Font | Plus Jakarta Sans (Google Fonts) |
-| Theme | Forest green (`#1a2e1a`, `#2d6a2d`, `#e8f0e8`, `#f0f7f0`) |
-| Animations | Framer Motion |
+| Theme | Neutral gray surfaces + forest-green primary, defined as CSS tokens in `client/src/index.css` (see Styling Conventions) |
+| Animations | Framer Motion (`motion/react` on Results) + CSS keyframes (`FloatingSquares`) |
+| i18n | String constants in `client/src/constants/strings.js` (en, es, fr, it, pt, ru) via `LanguageContext` |
 | Real-time | Socket.io (client + server) |
 | Map | react-leaflet v4 + OpenStreetMap tiles |
 | Backend | Node.js + Express |
@@ -30,28 +35,40 @@
 Veto/
 ├── client/                        # React/Vite frontend
 │   ├── src/
-│   │   ├── App.jsx                # Router + single app-wide SocketProvider
+│   │   ├── App.jsx                # Router + app-wide LanguageProvider/SocketProvider; legacy URL redirects
 │   │   ├── SocketContext.jsx      # Socket.io context provider (one socket for the whole app lifetime)
+│   │   ├── constants/
+│   │   │   ├── routes.js          # ROUTES: all client URLs (use these, never hard-code paths)
+│   │   │   └── strings.js         # All user-facing text, per language
+│   │   ├── context/
+│   │   │   ├── LanguageContext.jsx # Selected language + useStrings()
+│   │   │   └── RoomContext.jsx    # { code, setPhase } for the current room (provided by Room.jsx)
 │   │   ├── pages/
-│   │   │   ├── Home.jsx           # Landing page (Create / Join buttons)
+│   │   │   ├── Home.jsx           # Landing page (Create / Join buttons, language picker)
 │   │   │   ├── Create.jsx         # Host creates lobby (gets geolocation)
-│   │   │   ├── Join.jsx           # Player joins lobby via PIN
-│   │   │   ├── Lobby.jsx          # Pre-game waiting room
-│   │   │   ├── Questions.jsx      # Poll voting page
-│   │   │   ├── Results.jsx        # Restaurant list + map + final vote + winner screen
-│   │   │   └── Layout.jsx         # Shared wrapper (Navbar + Footer)
+│   │   │   ├── Join.jsx           # Player joins lobby via PIN (PIN can be prefilled via ?id=)
+│   │   │   ├── Room.jsx           # /room?id=CODE: picks Lobby / Questions / Results by phase; handles hostLeft + kicked
+│   │   │   ├── Lobby.jsx          # Pre-game waiting room (screen inside Room)
+│   │   │   ├── Questions.jsx      # Poll voting (screen inside Room)
+│   │   │   ├── Results.jsx        # Restaurant list + map + final vote + tie-breaker + winner (screen inside Room)
+│   │   │   └── Layout.jsx         # Shared wrapper for Questions/Results (Navbar + content + Footer, full-height flex column)
 │   │   ├── components/
-│   │   │   ├── navbar.jsx         # Top nav (forest green rounded pill, 80% width)
+│   │   │   ├── navbar.jsx         # Top nav card (wordmark + player name/avatar)
 │   │   │   ├── Footer.jsx
-│   │   │   └── AvatarSelection.jsx
+│   │   │   ├── VetoWordmark.jsx   # Shared "Veto" logo text
+│   │   │   ├── FloatingSquares.jsx(+.css) # Faint rising squares used behind the Lobby PIN card
+│   │   │   ├── AvatarSelection.jsx
+│   │   │   └── ui/                # shadcn/ui primitives (+ ripple grid, glowing effect)
 │   │   ├── hooks/
-│   │   │   └── useLeaveGuard.js   # Back-button/tab-close guard + host transfer on confirmed leave
-│   │   └── index.css              # Tailwind + shadcn CSS vars + Leaflet popup overrides
+│   │   │   ├── useLeaveGuard.js   # Back-button/tab-close guard + host transfer on confirmed leave
+│   │   │   └── use-toast.js
+│   │   └── index.css              # Tailwind + shadcn CSS vars + Veto palette tokens + Leaflet popup overrides
 │   ├── Dockerfile                 # Not used by the deploy pipeline — local docker-compose testing only
 │   └── index.html                 # Entry HTML (Google Fonts link here)
 ├── server/
 │   ├── index.js                   # All backend logic
 │   └── index.test.js              # Vitest unit tests (game logic, validation, timers)
+├── specs/                         # Feature specs (see CLAUDE.md; _template.md for the format)
 ├── .github/workflows/
 │   ├── ci.yml                     # Lint, build, tests, secret scanning, CodeQL
 │   └── deploy.yml                 # Builds server image, deploys to Azure per environment
@@ -84,15 +101,18 @@ The client's `VITE_MAPS_KEY` is domain-restricted and safe to expose. `SECRET_KE
 
 ## Running the Project Locally
 
-```bash
-# Terminal 1 — backend
-cd server && npm install && npm run start   # Runs on port 8000
+See **[README.md](./README.md#getting-started)** for setup and run commands. The client connects to `VITE_API_BASE_URL` (or `localhost:8000` if unset) for both Socket.io and the photo proxy REST endpoint.
 
-# Terminal 2 — frontend
-cd client && npm install && npm run dev     # Runs on port 5173
-```
+---
 
-The client connects to `VITE_API_BASE_URL` (or `localhost:8000` if unset) for both Socket.io and the photo proxy REST endpoint.
+## Routing
+The whole game lives at **`/room?id=CODE`** (like `youtube.com/watch?v=ID`). Other routes: `/` (Home), `/create`, `/join`. All paths come from `client/src/constants/routes.js` (`ROUTES.room(code)`, `ROUTES.joinWith(code)`, ...) — never hard-code a path.
+
+`pages/Room.jsx` owns the screen. It renders Lobby, Questions or Results from a `phase` state (`'lobby' | 'poll' | 'results'`), which screens advance via `RoomContext`'s `setPhase` instead of navigating. Phases only move forward. Room also syncs `phase` from the server's `lobbyInfo.phase` (`lobby→lobby`, `poll→poll`, `finalVote|done→results`), so reloads and late joiners land on the right screen.
+
+Room also owns the session-ending events for every screen: **`hostLeft`** and **`kicked`** both call `socket.disconnect()` and navigate home with a toast flag. Individual screens must not register their own handlers for these, and must use *named* handlers with `socket.off(event, handler)` — a bare `socket.off(event)` would also remove Room's listeners.
+
+Opening `/room` with no session (`socket.auth.token` unset, e.g. pasted link or reload) redirects to `/join?id=CODE`. Old `/lobby|questions|results/:code` URLs redirect to the room. Route matching is case-insensitive.
 
 ---
 
@@ -102,21 +122,23 @@ The client connects to `VITE_API_BASE_URL` (or `localhost:8000` if unset) for bo
 
 - `Home.jsx` has Create and Join buttons
 - `Create.jsx` calls `navigator.geolocation.getCurrentPosition` to get coords, then emits `createLobby` with coords. Has an error handler for permission denied / unavailable / timeout.
-- `Join.jsx` collects name + avatar + 6-character alphanumeric PIN (mobile keyboard set to `inputMode="text"` so letters can be entered, input auto-uppercased to match generated codes), calls `connectSocket`, then emits `joinLobby`
+- `Join.jsx` collects name + avatar + 6-character alphanumeric PIN (mobile keyboard set to `inputMode="text"` so letters can be entered, input auto-uppercased to match generated codes), calls `connectSocket`, then emits `joinLobby`. The PIN is prefilled from `?id=` when someone opens a room link without a session. A failed join (e.g. nonexistent lobby) shows a toast.
 - Socket auth: username stored as `socket.auth.token`, avatar as `socket.auth.avatar`
 
-### Phase 2 — Lobby (`/Lobby/:code`)
+### Phase 2 — Lobby (`/room?id=CODE`)
 
 - Host sees a green Start button (only visible to host)
-- All players shown in a grid with avatar + name
-- Host can **kick players** by hovering a card → red XCircle appears top-right → click emits `kickUser`
-- Kicked players are navigated to `/` with `{ state: { kicked: true } }` → red toast on Home
+- Navbar card (wordmark, Start/Leave) and a Room PIN card (PIN, copy button, `FloatingSquares` backdrop)
+- All players shown in a grid with avatar + name, inside a rounded panel with the ripple grid (ripples out from a card when a player joins/leaves)
+- Host can **kick players** by hovering a card (always visible on touch) → red "Kick" pill appears top-right → click emits `kickUser`
+- Kicked players are sent home via `Room.jsx` with `{ state: { kicked: true } }` → red toast on Home
 - PIN can be copied to clipboard
 - `lobbyInfo` event keeps the user list in sync
 - When host clicks Start → `startGame` emitted → server snapshots `lockedPlayers`
+- Leave button confirms, hands off host duties if needed, disconnects and returns home
 - Back button / tab close is guarded (`useLeaveGuard`) — confirms before leaving; if the host leaves and another player remains, host duties transfer via `transferHost`/`hostTransferred` instead of ending the game
 
-### Phase 3 — Questions (`/Questions/:code`)
+### Phase 3 — Questions (`/room?id=CODE`)
 
 - Server drives ALL question advancement (not client)
 - Server emits `phase_start` with `{ questionIndex, duration: 30, startedAt, lockedPlayers }`
@@ -127,7 +149,8 @@ The client connects to `VITE_API_BASE_URL` (or `localhost:8000` if unset) for bo
 - If all locked players vote before timer: server clears timer and advances immediately
 - **Observers** (late joiners): can see questions and who voted, but the Vote button is hidden. Server rejects their vote events.
 - Progress bar shows `(currentQuestion / total) * 100` (never reaches 100% during the poll)
-- Vote count badge per card shows `X / lockedPlayers.length`
+- Vote count badge per card shows `X / lockedPlayers.length`. When a player disconnects during the poll the server removes them from `lockedPlayers` and the client drops them from its local list, so the total shrinks.
+- Leave button (next to the progress bar) confirms, transfers host if needed, disconnects and returns home
 
 **Poll questions (4 total):**
 1. Top priority (Ambiance / Budget / Cuisine / Distance)
@@ -135,9 +158,9 @@ The client connects to `VITE_API_BASE_URL` (or `localhost:8000` if unset) for bo
 3. Cuisine type (Italian, Mexican, Chinese, Japanese, Mediterranean, American, French, Thai)
 4. Travel distance (Walking 0-1mi, Short drive 1-5mi, Moderate 5-15mi, Long 15+mi)
 
-### Phase 4 — Results / Final Vote (`/Results/:code`)
+### Phase 4 — Results / Final Vote (`/room?id=CODE`)
 
-Two-column layout: **40% left restaurant list**, **60% right Leaflet map**.
+Layout: on `md`+ screens a **40% left restaurant list** beside a **60% right Leaflet map**; on phones the **map is on top** and the list scrolls below it. The container height is bounded to the viewport (measured in a `useLayoutEffect`) so the list scrolls internally. Live mouse cursors were removed.
 
 **Server after poll ends:**
 1. Calls `getMostVotedOptions` (tie-broken randomly) to build the search query
@@ -158,7 +181,7 @@ Two-column layout: **40% left restaurant list**, **60% right Leaflet map**.
 ### Phase 5 — Winner Screen (same page, state change in Results.jsx)
 
 - `phase` state switches from `'voting'` to `'winner'`
-- Full-page green background with trophy icons
+- Card on the shared page gradient with trophy icons; a short tie-breaker "spin the wheel" carousel plays first when restaurants tie
 - Shows: restaurant name, photo, rating, price, address, hours, phone, website, Google Maps link
 - Exit button disconnects the socket and returns to Home
 
@@ -172,13 +195,14 @@ lobbies[code] = {
     users: [{ name, avatar }],       // all connected users
     coords: "lat,lng",               // from Create.jsx geolocation
     phase: 'lobby' | 'poll' | 'finalVote' | 'done',
-    lockedPlayers: [{ name, avatar }], // snapshot on startGame
+    lockedPlayers: [{ name, avatar }], // snapshot on startGame; leavers are pruned during the poll phase
     currentQuestion: number,         // 0-indexed, server-driven
     questionStartedAt: timestamp,    // Date.now() when question started
     questionTimer: Timeout,          // setTimeout reference
     restaurantVotes: {},             // { username: placeId }
     finalVoteTimer: Timeout,         // setTimeout reference
     places: [],                      // Google Places results
+    searchMeta: { radiusUsed, searchBroadened }, // set after the Places search
     poll: [ /* 4 question objects */ ],
 }
 ```
@@ -202,14 +226,14 @@ Each poll question:
 | `lobbyCreated` | S→C | Returns `code` to host |
 | `joinLobby` | C→S | Player joins with `{ lobbyCode }` |
 | `lobbyJoined` | S→C | Confirms join, sent only to the joining socket |
-| `lobbyInfo` | S→C | Broadcasts `{ code, users, host }` to the room |
+| `lobbyInfo` | S→C | Broadcasts `{ code, users, host, phase }` to the room |
 | `updateLobby` | C→S | Request fresh lobbyInfo |
 | `selfInfo` | S→C | Tells a specific socket whether it's the current host |
 | `startGame` | C→S | Host starts the game `{ lobbyCode }` |
-| `gameStarted` | S→C | Navigates all to Questions. Payload: `{ lockedPlayers }` |
+| `gameStarted` | S→C | Moves all clients to the Questions screen. Payload: `{ lockedPlayers }` |
 | `kickUser` | C→S | Host kicks `{ lobbyCode, targetUser }` |
-| `kicked` | S→C | Sent to the kicked user only |
-| `hostLeft` | S→C | Broadcast when the host disconnects with no successor available |
+| `kicked` | S→C | Sent to the kicked user only (handled in `Room.jsx`) |
+| `hostLeft` | S→C | Broadcast when the host disconnects (tab closed/connection lost) or leaves with no successor; the lobby is destroyed. Handled in `Room.jsx` on every screen |
 | `transferHost` | C→S | Confirmed-leaving host hands off `{ lobbyCode }` |
 | `hostTransferred` | S→C | Broadcasts `{ newHost }` after a successful handoff |
 | `getPollData` | C→S | Request poll questions |
@@ -217,15 +241,14 @@ Each poll question:
 | `phase_start` | S→C | `{ phase, questionIndex?, duration, startedAt, lockedPlayers }` |
 | `phase_extend` | S→C | `{ addedSeconds }` — timer extended |
 | `vote` | C→S | `{ optionId, lobbyCode }` — server uses its own `currentQuestion` |
-| `navResults` | S→C | Navigate all clients to the Results page |
+| `navResults` | S→C | Moves all clients to the Results screen |
 | `getPlaces` | S→C | `{ places, coords, lockedPlayers }` |
 | `getPlaceDetails` | C→S | `{ placeId }` — fetches name, rating, address, hours, phone, website, photos |
 | `placeDetails` | S→C | Full Place Details object |
 | `voteRestaurant` | C→S | `{ lobbyCode, placeId }` — final restaurant vote |
 | `restaurantVoteCount` | S→C | `{ voted, total }` — count only, no breakdown |
 | `winner` | S→C | `{ place }` — winning restaurant object |
-| `cursorMove` | C→S | `{ lobbyCode, x, y }` — live cursor position on Results page |
-| `cursorLeave` | C→S | `{ lobbyCode }` — cursor left the panel |
+| `cursorMove` / `cursorLeave` | C→S | **Unused.** Live cursors were removed from the client; the server handlers remain and can be deleted |
 | `userDisconnect` | S→C | Username of a disconnected non-host player |
 | `Error` | S→C | Error string |
 
@@ -235,6 +258,9 @@ Each poll question:
 
 ### App-wide Socket.io connection
 `SocketProvider` wraps the whole app once in `App.jsx` (inside `BrowserRouter`, around `<Routes>`) — **not** per-route. One socket persists for the entire browser session instead of disconnecting/reconnecting on every navigation. Because of this, anywhere a session actually *ends* (confirmed leave via `useLeaveGuard`, `kicked`, `hostLeft`, or the winner screen's Exit button) must explicitly call `socket.disconnect()` — the server's cleanup logic (removing a player from `lobby.users`, triggering host transfer) only runs on an actual `disconnect` event, which no longer happens automatically just from navigating away.
+
+### Dev-mode duplicate requests
+`main.jsx` renders `<React.StrictMode>`, which runs every `useEffect` twice on mount in development. Effects that emit (e.g. `updateLobby`, `getPollData`) therefore show up twice in the server logs in dev only; production builds run them once. Listeners are cleaned up on unmount, so nothing leaks.
 
 ### Back-button / leave guard
 `useLeaveGuard` pushes a guard entry via React Router's own `navigate()` (not raw `window.history.pushState`) so React Router's internal location tracking never desyncs from the real browser history stack — a raw `pushState` call doesn't fire `popstate`, so React Router has no way to observe it, which previously caused subsequent `navigate()` calls to silently fail after a leave/re-enter cycle.
@@ -283,11 +309,21 @@ On a confirmed leave, the client emits `transferHost` before disconnecting. The 
 
 ## Styling Conventions
 
-- **Theme**: Forest green. Primary colors: `#1a2e1a` (dark), `#2d6a2d` (accent/buttons), `#e8f0e8` (page bg), `#f0f7f0` (surface), `#c8dcc8` (border)
+- **Palette lives in `client/src/index.css`** as CSS variables (HSL channels, with a `.dark` set), mapped to Tailwind names in `tailwind.config.js`. Use the names, not raw hex or `gray-*`:
+
+  | Token / class | Used for |
+  |---|---|
+  | `primary` (`--primary: 120 40% 30%`) | Buttons, accents, progress (forest green) |
+  | `brand-ink` | Headings, wordmark, strong text (dark green) |
+  | `gold` | Yellow accent (wordmark "to", PIN card bar) |
+  | `surface`, `surface-muted`, `surface-border`, `surface-strong` | Cards/panels, tints and hovers, borders and tracks, progress track |
+  | `page-top`, `page-mid`, `page-bottom` | Page background gradient (`bg-gradient-to-b from-page-top via-page-mid to-page-bottom`) |
+  | `muted-foreground` | Secondary (gray) text |
+
+  Status colors (red/yellow timer warnings, the amber "search broadened" notice, the red "you are here" pin) intentionally stay as plain Tailwind/hex.
 - **Font**: Plus Jakarta Sans loaded via Google Fonts in `client/index.html`, set on `body` in `index.css`
-- **shadcn `--primary`**: `120 40% 30%` (forest green for the Progress bar)
-- **Navbar**: `bg-[#1a2e1a] rounded-3xl w-full lg:w-[80%] mx-auto` — rounded pill, 80% wide on large screens
-- **Results/Questions page bg**: `bg-[#e8f0e8]` applied via `-mx-6 -mt-6` negative margin trick to bleed through Layout's `p-6`
+- **Cards**: `bg-surface border border-surface-border shadow-md rounded-3xl` (navbar, PIN card, question panel); width `w-[90%] lg:w-[80%] mx-auto`
+- **Page chrome**: `Layout.jsx` provides the gradient, navbar and footer as a full-height flex column so the footer stays at the bottom on short screens. Lobby builds its own page with the same gradient.
 - **Leaflet popup**: `.veto-popup` class overrides in `index.css` for a rounded, padded card style
 
 ---
@@ -301,25 +337,16 @@ On a confirmed leave, the client emits `transferHost` before disconnecting. The 
 
 ## CI/CD
 
-- **`ci.yml`**: runs on every push/PR to `main`, `uat`, `develop` — lint, build, server tests, secret scanning (gitleaks), and CodeQL. All must pass before merging (enforced via branch protection).
-- **`deploy.yml`**: builds the server into a Docker image, pushes to a shared Azure Container Registry, deploys to the matching Container App, builds the client, and deploys to the matching Static Web App.
-
-| Branch | Environment | Trigger |
-|---|---|---|
-| `feature/*` | Dev1 | Auto-deploy on push |
-| `develop` | Dev | Manual approval |
-| `uat` | UAT | Manual approval |
-| `main` | Prod | Manual approval (admins only) |
-
-Full Azure infrastructure setup (resource groups, Container Apps, Static Web Apps, Key Vault, OIDC federation) is documented in **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+- **`ci.yml`**: runs on every push/PR to `main`, `uat`, `develop`: lint, build, server tests, secret scanning (gitleaks) and CodeQL. All must pass before merging (enforced via branch protection).
+- **`deploy.yml`**: builds the server image, deploys it to the matching Azure Container App, builds the client and deploys it to the matching Static Web App. Branch → environment mapping, approvals and Azure setup are documented in **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 
 ---
 
 ## What's NOT Yet Built / Possible Next Steps
 
-- Persistent storage (lobbies and photo cache are in-memory, lost on server restart)
+- **Known issue:** reloading or opening a deep link (e.g. `/room?id=CODE`) returns a 404 on Azure Static Web Apps because there is no `staticwebapp.config.json` `navigationFallback` (see `DEPLOYMENT.md` → Troubleshooting)
+- Persistent storage / running multiple server replicas (lobbies, timers and the photo cache are in-memory; see `specs/horizontal-scaling.md`, Draft)
 - Authentication / user accounts
 - "Play Again" functionality (create a new lobby with the same group after a game ends)
-- Mobile-optimized layout for the Results page (map/list currently side-by-side, not stacked)
 - Mapbox integration (currently OpenStreetMap — would allow full theme customization)
 - Custom domain for Prod
